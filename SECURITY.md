@@ -84,7 +84,7 @@ Mail credentials are read from environment variables or `.env` only, never from 
 | 200 simulated phones behind a Cloudflare Quick Tunnel | Every request succeeded (no 429), pages update every 1–2 seconds by polling |
 | https behind a proxy (`TRUST_PROXY=1`) | Admin cookie marked Secure; a faked `X-Forwarded-For` does not get around the rate limits |
 | Docker (Compose on macOS) | Runs as uid 1000; can write `/data` but not the app code; data survives restarts; `docker stop` saves and exits cleanly |
-| Docker lockdown (after 1.1.1, 18 November 2026) | Read-only root filesystem (only `/data` and `/tmp` writable), all Linux capabilities dropped, `no-new-privileges`, 512 MB memory and 200 process limits, base image pinned by digest. Checked in a running container: https certificate made, photo uploaded, vote cast, data kept across a restart, `docker stop` exits 0, writing to `/app` refused |
+| Docker lockdown (1.1.2, 18 November 2026) | Read-only root filesystem (only `/data` and `/tmp` writable), all Linux capabilities dropped, `no-new-privileges`, 512 MB memory and 200 process limits, base image pinned by digest. Checked in a running container: https certificate made, photo uploaded, vote cast, data kept across a restart, `docker stop` exits 0, writing to `/app` refused |
 | Per-address limits in Docker when the app sees each device's own address | A guesser is limited; the real admin from another address still logs in |
 | Through a Cloudflare Quick Tunnel in a web browser (11 November 2026) | Getting a card at the desk and saving its picture, the voter page and voting, the intro with cheers, opening from a card picture: all worked |
 
