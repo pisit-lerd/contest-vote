@@ -7,12 +7,12 @@ passed, which limits are accepted, and what has not been tested yet, so you can 
 
 | | |
 |---|---|
-| App version | 1.1.0 |
-| Checked on | 11 November 2026 (1.0.0 on 10 November 2026); scanner run again with 0.0.10 on 18 November 2026 |
+| App version | 1.1.1 |
+| Checked on | 18 November 2026 (1.1.1); 1.1.0 on 11 November 2026, 1.0.0 on 10 November 2026 |
 | Scanner | [ai-secure-audit](https://github.com/surapas3022/ai-secure-audit) 0.0.10: gitleaks 8.30.1 (keys and passwords in code and git history), osv-scanner 2.7.0 (libraries with known vulnerabilities, offline database), opengrep 1.33.1 with the kit's own rules (sign-in and join routes with no limit on repeats, vote routes that never check who is voting, session or admin checks that a name like `constructor` passes), trivy 0.76.1 config (Dockerfile; it does not read `compose.yaml`, so the Compose file is not covered by the scanner) |
 | Scanner result | 0 findings |
 | Dockerfile | hadolint: no errors (two warnings kept on purpose: `apk add openssl` is not pinned, so rebuilds get security fixes; the healthcheck uses shell form to read `$PORT`) |
-| Hand checks | 19 cheating attempts against a local copy; 20 registration-desk ticket checks; intro, cheer and admin-given-name checks; email and SMTP checks against local stand-in servers |
+| Hand checks | 1.1.1: an audit with the ai-secure-audit skills (threat model, every admin route with forged cookies, cross-user and "after a change" tests, Docker container settings), which found the two problems fixed in 1.1.1; earlier: 19 cheating attempts against a local copy; 20 registration-desk ticket checks; intro, cheer and admin-given-name checks; email and SMTP checks against local stand-in servers |
 
 Each new release is checked again before it is published. When ai-secure-audit adds a check, this page is updated with
 the new version and result.

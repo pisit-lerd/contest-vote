@@ -10,8 +10,8 @@ No database to set up: data lives in `data/db.json` and contestant photos in `da
 
 The screens are in Thai. Buttons and labels below are quoted exactly as they appear, with an English translation.
 
-**Security:** version 1.1.0 was checked with ai-secure-audit 0.0.4, 19 hand-made cheating attempts and tests for the
-desk tickets, the intro and cheers. See
+**Security:** version 1.1.1 was checked with ai-secure-audit 0.0.10 and its audit skills (which found two problems,
+fixed in 1.1.1), 19 hand-made cheating attempts and tests for the desk tickets, the intro and cheers. See
 [SECURITY.md](SECURITY.md) for what passed, the accepted limits, and what is not tested yet.
 
 ## Run it locally
