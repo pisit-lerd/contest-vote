@@ -7,3 +7,5 @@ node_modules
 .git
 *.pem
 docs
+# results of security scans (ai-secure-audit): a list of weak points, not for the image
+.audit
