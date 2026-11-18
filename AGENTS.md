@@ -65,6 +65,9 @@ Each line below fixes a real problem found by a security check. Keep it working,
 - **SMTP never sends a password or email without verified TLS.** Port 465 is TLS from the start; 587/25 must complete
   STARTTLS, or the client stops before `AUTH` and `MAIL`. Certificates are always verified (`rejectUnauthorized` is
   always true); company certificates are added with `SMTP_CA_FILE`, never by turning checks off.
+- **The container is locked down.** `compose.yaml` keeps `read_only`, `cap_drop: [ALL]`, `no-new-privileges`,
+  `mem_limit` and `pids_limit`; the app writes only to `/data` (and `/tmp`). The base image stays pinned by digest.
+  A feature that needs to write elsewhere gets a volume, not a writable root filesystem.
 - **Uploads are checked by content.** Photos must really be JPEG, PNG or WEBP; the declared type is not trusted.
 - **User text is escaped** in pages and emails, line breaks are removed from email headers, and CSV cells that start
   with `=`, `+`, `-` or `@` are neutralised.

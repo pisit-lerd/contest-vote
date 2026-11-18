@@ -106,6 +106,12 @@ docker compose logs -f    # the same startup messages as npm start
   `- ./company-ca.pem:/app/company-ca.pem:ro` under `volumes`) and set `SMTP_CA_FILE=/app/company-ca.pem`.
 - The server runs as the unprivileged `node` user and stops cleanly on `docker compose stop` (data is saved first).
   Run one container only: data lives in the process's memory.
+- `compose.yaml` locks the container down: everything but `/data` and `/tmp` is read-only, it has no Linux
+  capabilities, it cannot gain privileges, and it may use at most 512 MB of memory and 200 processes. If you add
+  something that writes files elsewhere, mount a volume for it; raise `mem_limit` only if the logs show it running out.
+- The base image is pinned by digest in the `Dockerfile`, so a rebuild gives the same image. To take a newer
+  `node:22-alpine` (for security fixes), replace the digest with the one from
+  `docker buildx imagetools inspect node:22-alpine` and rebuild.
 - **Docker Desktop (Mac, Windows) shows every phone to the app as one address.** Limits counted per address (wrong
   admin passwords, wrong vote codes) then count the whole room together, so one person guessing can make everyone
   wait. Docker on a Linux server keeps each phone's own address. For a real event, prefer Docker on Linux or run

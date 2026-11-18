@@ -1,6 +1,8 @@
 # contest-vote in a container. Data (votes, photos, TLS cert) lives in the /data volume.
 #   docker compose up -d --build        (see "Run with Docker" in the README)
-FROM node:22-alpine
+# pinned by digest so a rebuild gets exactly this image; to take a newer one on purpose:
+#   docker buildx imagetools inspect node:22-alpine   (copy the Digest line here)
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a
 
 # openssl: makes the self-signed certificate when HTTPS_PORT is set
 RUN apk add --no-cache openssl

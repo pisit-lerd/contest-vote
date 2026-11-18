@@ -16,6 +16,17 @@ services:
         required: false
     volumes:
       - vote-data:/data
+    # the app writes only to /data; everything else in the container is read-only
+    read_only: true
+    tmpfs:
+      - /tmp
+    # it listens on a port above 1024 and never changes user, so it needs no Linux capabilities
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # caps the damage of a flood or a leak: about 4x what 200 phones voting at once use
+    mem_limit: 512m
+    pids_limit: 200
     # run one instance only: data lives in the process's memory
 volumes:
   vote-data:
