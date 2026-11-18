@@ -36,6 +36,8 @@ the new version and result.
 | Uploading a non-image file as a photo | Refused (content is checked, not the declared type) |
 | HTML in event, topic, contestant or voter names | Escaped in pages and emails |
 | Making the app's QR generator point at another site | Ignored; QR always points at the event |
+| Voting with a card after the admin deleted the printed codes (lost or stolen cards) | Refused: deleting the codes also ends the sessions made with them (found and fixed 18 November 2026, after 1.1.0) |
+| Joining with one valid code in a loop (300,000 a minute from one laptop) | At most 10 sessions kept per card; `db.json` stays the same size (in 1.1.0, 200,000 joins grew it to 7.2 MB) |
 | Security headers | Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy present |
 
 ## Registration desk, intro and cheers (new in 1.1.0)

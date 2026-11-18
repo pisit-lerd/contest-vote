@@ -1000,6 +1000,37 @@ app.get('/api/mail-qr/:code.png', async (req, res) => {
   res.type('png').set('Cache-Control', 'private, max-age=86400').send(png);
 });
 
+/* voter sessions: one token per join, at most MAX_SESSIONS_PER_VOTER per voter. Joining again with the same code
+ * or name (another phone, a reload) adds a token and drops that voter's oldest beyond the cap, so a script that
+ * joins with one valid code thousands of times a second cannot grow db.sessions (and db.json) without end. */
+const MAX_SESSIONS_PER_VOTER = 10;
+let sessionIdx = null; // voterId -> tokens, oldest first; rebuilt from db.sessions after any bulk change
+function sessionsByVoter() {
+  if (sessionIdx) return sessionIdx;
+  sessionIdx = new Map();
+  for (const [t, vid] of Object.entries(db.sessions)) {
+    if (!sessionIdx.has(vid)) sessionIdx.set(vid, []);
+    sessionIdx.get(vid).push(t);
+  }
+  return sessionIdx;
+}
+function addSession(voterId) {
+  const t = token();
+  db.sessions[t] = voterId;
+  const idx = sessionsByVoter();
+  const list = idx.get(voterId) || [];
+  list.push(t);
+  while (list.length > MAX_SESSIONS_PER_VOTER) delete db.sessions[list.shift()];
+  idx.set(voterId, list);
+  return t;
+}
+/** drop every session of these voters (their codes or roster entries are gone) */
+function dropSessions(voterIds) {
+  const ids = new Set(voterIds);
+  for (const [t, vid] of Object.entries(db.sessions)) if (ids.has(vid)) delete db.sessions[t];
+  sessionIdx = null;
+}
+
 function voterFromReq(req) {
   const t = req.get('x-voter-token');
   const id = t && db.sessions[t];
@@ -1064,8 +1095,7 @@ app.post('/api/join', (req, res) => {
     voter = { id: newId('v'), kind: 'open', key: null, label: 'ไม่ระบุชื่อ', createdAt: new Date().toISOString() };
     db.voters[voter.id] = voter;
   }
-  const t = token();
-  db.sessions[t] = voter.id;
+  const t = addSession(voter.id);
   if (mode === 'open') res.set('Set-Cookie', `cv_dev=${t}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}${cookieSecure(req)}`);
   changed();
   res.json({ token: t, mode });
@@ -1181,7 +1211,7 @@ app.put('/api/admin/event', (req, res) => {
     if (!ACCESS_MODES.includes(b.accessMode)) return fail(res, 400, 'รูปแบบการเข้าโหวตไม่ถูกต้อง');
     if (totalBallots() > 0) return fail(res, 409, 'มีคนโหวตแล้ว เปลี่ยนรูปแบบการเข้าไม่ได้ ต้องล้างผลโหวตทั้งหมดก่อน');
     db.event.accessMode = b.accessMode;
-    db.sessions = {};
+    db.sessions = {}; sessionIdx = null;
   }
   changed();
   res.json(adminState());
@@ -1209,7 +1239,7 @@ app.put('/api/admin/roster', (req, res) => {
 app.post('/api/admin/roster/purge-unlisted', (req, res) => {
   const ids = new Set(unlistedVoterIds());
   for (const b of Object.values(db.ballots)) for (const id of ids) delete b[id];
-  for (const [t, vid] of Object.entries(db.sessions)) if (ids.has(vid)) delete db.sessions[t];
+  dropSessions(ids);
   for (const id of ids) delete db.voters[id];
   changed();
   res.json(adminState());
@@ -1396,7 +1426,12 @@ app.get('/api/admin/codes', async (req, res) => {
 app.delete('/api/admin/codes', (req, res) => {
   const hasCodeVotes = Object.values(db.ballots).some((b) => Object.keys(b).some((vid) => db.voters[vid]?.kind === 'code' && isCardCode(db.voters[vid].key)));
   if (hasCodeVotes) return fail(res, 409, 'มีคนใช้รหัสโหวตแล้ว ลบรหัสไม่ได้ ต้องล้างผลโหวตทั้งหมดก่อน');
-  for (const code of Object.keys(db.codes)) if (isCardCode(code)) delete db.codes[code]; // emailed codes stay
+  const gone = new Set(Object.keys(db.codes).filter(isCardCode)); // emailed and desk codes stay
+  for (const code of gone) delete db.codes[code];
+  // whoever already joined with a deleted card is signed out too: deleting is how lost or stolen cards are cancelled
+  const voterIds = Object.values(db.voters).filter((v) => v.kind === 'code' && gone.has(v.key)).map((v) => v.id);
+  dropSessions(voterIds);
+  for (const id of voterIds) delete db.voters[id];
   changed();
   res.json(adminState());
 });
@@ -1439,8 +1474,7 @@ app.post('/api/desk/claim', async (req, res) => {
   db.desk.handed = (db.desk.handed || 0) + 1;
   const code = newCode({ desk: true });
   const voter = getOrCreateVoter('code', code, code);
-  const vt = token();
-  db.sessions[vt] = voter.id;
+  const vt = addSession(voter.id);
   changed();
   const link = codeLink(voteUrl(), code);
   res.json({
@@ -1482,7 +1516,7 @@ app.delete('/api/admin/mail/recipients/:id', (req, res) => {
   if (voterIds.some((vid) => Object.values(db.ballots).some((b) => b[vid]))) return fail(res, 409, 'คนนี้ใช้รหัสโหวตไปแล้ว ลบไม่ได้ ต้องล้างผลโหวตทั้งหมดก่อน');
   // the code goes too, so a wrong address that already got the email can't use it
   for (const vid of voterIds) delete db.voters[vid];
-  for (const [t, vid] of Object.entries(db.sessions)) if (voterIds.includes(vid)) delete db.sessions[t];
+  dropSessions(voterIds);
   delete db.codes[r.code];
   db.mail.recipients = db.mail.recipients.filter((x) => x !== r);
   mailChanged();
@@ -1601,7 +1635,7 @@ app.post('/api/admin/reset-votes', (req, res) => {
   if ((req.body || {}).confirm !== 'ล้างผล') return fail(res, 400, 'พิมพ์คำว่า "ล้างผล" เพื่อยืนยัน');
   db.ballots = {};
   db.voters = {};
-  db.sessions = {};
+  db.sessions = {}; sessionIdx = null;
   db.screen.mode = 'hidden'; db.screen.revealStep = 0;
   changed();
   res.json(adminState());

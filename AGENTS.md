@@ -57,6 +57,11 @@ Each line below fixes a real problem found by a security check. Keep it working,
   card's signed QR bypass the typed-code limiter; name mode uses a proof-of-work puzzle that gets harder instead of a
   lockout. `TRUST_PROXY` stays off unless a proxy is really in front.
 - **Vote codes are long and signed.** New codes are 8 characters; QR links carry an HMAC signature.
+- **Deleting codes ends their sessions.** Deleting printed codes or an email recipient also removes the voters and
+  sessions made with those codes, so a lost or stolen card stops working even if someone already joined with it.
+- **Sessions per voter are capped.** Each join adds a token through `addSession`, which keeps at most 10 per voter
+  and drops the oldest, so joining with one valid code in a loop cannot grow `db.sessions` and `db.json` without end.
+  Any new code path that creates a session must use `addSession`; bulk changes to `db.sessions` reset `sessionIdx`.
 - **SMTP never sends a password or email without verified TLS.** Port 465 is TLS from the start; 587/25 must complete
   STARTTLS, or the client stops before `AUTH` and `MAIL`. Certificates are always verified (`rejectUnauthorized` is
   always true); company certificates are added with `SMTP_CA_FILE`, never by turning checks off.

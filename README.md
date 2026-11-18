@@ -124,6 +124,9 @@ The first time the admin page opens, a checklist at the top walks through steps 
    Then give out codes in any mix of these ways:
    - Print cards: create about 10% more codes than guests, then press "พิมพ์บัตรรหัส" (print code cards). A4 fits 21
      cards; each card has a QR code with its code built in, so scanning gets the guest straight in.
+     If a batch of cards is lost or taken before voting starts, delete the printed codes and print new ones: anyone
+     who already joined with an old card is signed out and cannot vote. (Deleting is refused once a card has voted.)
+     One card can be signed in on up to 10 phones at a time; joining on an 11th signs out the oldest.
    - Email codes. See "Email vote codes".
    - A registration desk where guests scan a screen to get a card on their phone. See "Registration desk".
 

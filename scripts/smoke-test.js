@@ -204,6 +204,18 @@ async function main() {
 
   // ---- code mode
   ok(await req('PUT', '/api/admin/event', { accessMode: 'code' }));
+  // deleting the printed cards cancels them: whoever already joined with one is signed out (lost or stolen cards)
+  ok(await req('POST', '/api/admin/codes', { count: 3 }));
+  const stolen = ok(await req('GET', '/api/admin/codes')).codes;
+  const stolenTokens = [];
+  for (const c of stolen) stolenTokens.push(ok(await req('POST', '/api/join', { code: c.code })).token);
+  for (const t of stolenTokens) assert.equal((await req('GET', '/api/me', undefined, { 'X-Voter-Token': t })).status, 200);
+  ok(await req('DELETE', '/api/admin/codes'));
+  for (const t of stolenTokens) {
+    assert.equal((await req('GET', '/api/me', undefined, { 'X-Voter-Token': t })).status, 401, 'deleted card: session ended');
+    assert.equal((await req('POST', '/api/vote', { topicId: t1.id, picks: [c1[0].id] }, { 'X-Voter-Token': t })).status, 401, 'deleted card: cannot vote');
+  }
+  assert.equal((await req('POST', '/api/join', { code: stolen[0].code })).status, 404, 'deleted card: code no longer works');
   st = ok(await req('POST', '/api/admin/codes', { count: 220 }));
   assert.equal(st.codes.total, 220);
   const codes = ok(await req('GET', '/api/admin/codes?qr=1')).codes;
@@ -212,6 +224,16 @@ async function main() {
   assert.equal((await req('POST', '/api/join', { code: 'ZZZZZZZZ' })).status, 404);
   const lower = ok(await req('POST', '/api/join', { code: codes[0].code.toLowerCase().replace(/^(....)/, '$1-') }));
   assert.ok(lower.token);
+  // joining again with one code (more phones, or a script) keeps at most 10 sessions for that card: the oldest go
+  const again = [];
+  for (let i = 0; i < 300; i++) again.push(ok(await req('POST', '/api/join', { code: codes[1].code })).token);
+  await new Promise((r) => setTimeout(r, 400)); // saved 250 ms after a change
+  const sess = JSON.parse(fs.readFileSync(path.join(DATA, 'db.json'), 'utf8')).sessions;
+  const voterOf = sess[again.at(-1)];
+  assert.equal(Object.values(sess).filter((v) => v === voterOf).length, 10, 'sessions per card are capped at 10');
+  assert.equal((await req('GET', '/api/me', undefined, { 'X-Voter-Token': again[0] })).status, 401, 'oldest session dropped');
+  for (const t of again.slice(-10)) assert.equal((await req('GET', '/api/me', undefined, { 'X-Voter-Token': t })).status, 200, 'newest 10 still work');
+  assert.equal((await req('GET', '/api/me', undefined, { 'X-Voter-Token': lower.token })).status, 200, 'other cards untouched');
 
   // ---- 200 voters at the same time, each on both topics
   const t0 = Date.now();
