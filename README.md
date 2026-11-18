@@ -104,6 +104,8 @@ docker compose logs -f    # the same startup messages as npm start
   the quotes, so a value written `'abcd efgh'` arrives with the `'` marks and the password no longer matches.
 - `SMTP_CA_FILE` must be a path inside the container: mount the file (for example
   `- ./company-ca.pem:/app/company-ca.pem:ro` under `volumes`) and set `SMTP_CA_FILE=/app/company-ca.pem`.
+  The app in the container runs as the `node` user, not as you, so on Linux the file must be readable by everyone:
+  `chmod 644 company-ca.pem` (a file only its owner can read, such as `600` owned by root, shows "cannot be read: EACCES").
 - The server runs as the unprivileged `node` user and stops cleanly on `docker compose stop` (data is saved first).
   Run one container only: data lives in the process's memory.
 - `compose.yaml` locks the container down: everything but `/data` and `/tmp` is read-only, it has no Linux
@@ -381,7 +383,7 @@ link). Ask IT to enable STARTTLS, or use Gmail/Brevo.
 | Server will not encrypt with STARTTLS | The server does not offer STARTTLS. If it uses port 465, set `SMTP_PORT=465`. If IT confirms STARTTLS is supported, something on the network is stripping it (possible interception); try another network. If it really is not supported, it cannot be used with this app. |
 | The certificate of … failed verification | Company-issued certificate → put the certificate file in `SMTP_CA_FILE`. Still failing = the file did not issue this certificate, or it has expired. If the server uses a normal public certificate, someone may be intercepting the connection; do not send yet. |
 | The server's certificate is not issued for … | `SMTP_HOST` must be the name in the certificate, for example `mail.company.com` instead of an IP (ask IT). |
-| `SMTP_CA_FILE` cannot be read / is not a `.pem` certificate | Check the path. The file must be text starting with `-----BEGIN CERTIFICATE-----` (if you got a binary `.cer`/`.crt`, ask IT to convert it to PEM). |
+| `SMTP_CA_FILE` cannot be read / is not a `.pem` certificate | Check the path. In Docker on Linux, also run `chmod 644` on the file (`EACCES` means the container's `node` user may not read it). The file must be text starting with `-----BEGIN CERTIFICATE-----` (if you got a binary `.cer`/`.crt`, ask IT to convert it to PEM). |
 | Username or password rejected | Check `SMTP_USER` / `SMTP_PASS`; some servers need the full email address as username. |
 | Will not relay outside the organisation | Log in, or ask IT to allow this machine to send externally. |
 | Not allowed to send as … | `MAIL_FROM` must be an address this account may send as, usually the same as `SMTP_USER`. |
