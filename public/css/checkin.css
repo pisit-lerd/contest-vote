@@ -19,3 +19,7 @@ body { background: var(--stage-bg); color: var(--stage-text); min-height: 100vh;
 .d-staff .btn:hover { background: var(--stage-line); }
 .banner { background: var(--stage-panel); color: var(--stage-text); border: 1px solid var(--stage-line); text-align: left; }
 .banner .icon { color: var(--stage-danger); }
+
+/* theme: curtain valance across the top of the desk screen */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: 14px; background: var(--curtain); box-shadow: 0 6px 18px rgba(0, 0, 0, .5); }
+.d-title { font-family: var(--font-display); font-weight: 500; }

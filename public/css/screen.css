@@ -123,3 +123,10 @@ body.stage { background: var(--stage-bg); color: var(--stage-text); overflow: hi
   .ch-t { left: 3vw; animation: ch-fade 6s linear forwards; }
   @keyframes ch-fade { 0%, 100% { opacity: 0; } 10%, 85% { opacity: 1; } }
 }
+
+/* theme: velvet curtains down both sides of the projector stage */
+body.stage::before, body.stage::after { content: ""; position: fixed; top: 0; bottom: 0; width: 1.6vw; background: var(--curtain); pointer-events: none; z-index: 1; }
+body.stage::before { left: 0; box-shadow: 8px 0 24px rgba(0, 0, 0, .55); }
+body.stage::after { right: 0; box-shadow: -8px 0 24px rgba(0, 0, 0, .55); }
+.s-title, .lobby h1 { font-family: var(--font-display); font-weight: 500; }
+.counter .n { font-family: var(--font-round); }

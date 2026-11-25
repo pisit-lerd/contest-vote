@@ -14,6 +14,9 @@ const S = {
 };
 const urlCode = new URLSearchParams(location.search).get('c');
 const urlSig = new URLSearchParams(location.search).get('s'); // signed QR on newer cards
+// came from the photo page (/?#booth, /#contest), which needs a joined guest: go back there once joined
+const urlNext = ['booth', 'contest'].includes(new URLSearchParams(location.search).get('next')) ? new URLSearchParams(location.search).get('next') : null;
+const backToPhotoPage = () => { location.replace('/#' + urlNext); return true; };
 
 $('#offline-icon').innerHTML = icon('wifiOff');
 $('#back').innerHTML = icon('chevronLeft') + '<span>หัวข้อทั้งหมด</span>';
@@ -43,7 +46,8 @@ async function join(body) {
   const r = await api('POST', '/api/join', body);
   S.token = r.token; localStorage.setItem(TOKEN_KEY, r.token);
   await loadMe();
-  if (urlCode) history.replaceState(null, '', location.pathname);
+  if (urlCode) history.replaceState(null, '', location.pathname + (urlNext ? '?next=' + urlNext : ''));
+  if (urlNext) backToPhotoPage();
 }
 
 // name mode: each attempt carries a solved puzzle (server: anti name-guessing without locking out
@@ -67,7 +71,7 @@ async function joinByName(name, onSlow) {
 }
 
 async function ensureSession() {
-  if (await loadMe()) { S.view = { name: 'list' }; return render(); }
+  if (await loadMe()) { if (urlNext) return backToPhotoPage(); S.view = { name: 'list' }; return render(); }
   const mode = S.pub.event.accessMode;
   if (mode === 'open') { await join({}); S.view = { name: 'list' }; return render(); }
   if (mode === 'code' && urlCode) {
@@ -148,6 +152,7 @@ function renderJoin() {
         <input id="j-in" class="input" autocomplete="name" maxlength="80" ${S.joinError ? 'aria-invalid="true" aria-describedby="join-err"' : ''}>
         <p class="hint">พิมพ์ตามรายชื่อพนักงานของงานนี้ ถ้าเปลี่ยนเครื่องให้ใช้ชื่อหรือรหัสเดิม จะเห็นโหวตเดิมของคุณ</p>${err}</div>`;
   $('#app').innerHTML = `
+    <div class="buddy" id="buddy"><div class="bd-slot" aria-hidden="true"></div>
     <form class="card join" id="join-form" novalidate>
       <h2>${mode === 'code' ? 'กรอกรหัสเพื่อเข้าร่วมกิจกรรม' : 'บอกเราว่าคุณคือใคร'}</h2>
       <p class="hint">ใช้ตลอดงาน: ส่งเชียร์ขึ้นจอตอนแนะนำผู้เข้าประกวด และโหวตเมื่อผู้จัดเปิดโหวต</p>
@@ -157,8 +162,9 @@ function renderJoin() {
         <label class="btn btn-block pic-btn" for="j-pic">${icon('image')}เปิดจากรูปบัตรที่บันทึกไว้</label>
         <input id="j-pic" type="file" accept="image/*" class="visually-hidden">
         <p class="hint">เลือกรูปบัตร รูปแคปหน้าจอ หรือรูปถ่ายบัตรกระดาษ ระบบอ่าน QR ในเครื่องนี้ ไม่ได้ส่งรูปออกไปไหน</p></div>` : ''}
-    </form>`;
+    </form></div>`;
   const input = $('#j-in');
+  Buddy.attach($('#buddy'), input);
   if (!urlCode && !matchMedia('(pointer: coarse)').matches) input.focus(); // phones: no keyboard popping over the picture button
   const pic = $('#j-pic');
   if (pic) pic.addEventListener('change', () => {
@@ -170,6 +176,7 @@ function renderJoin() {
       try {
         const card = await readCardPicture(f);
         await join(card);
+        await Buddy.cheer($('#buddy'));
         S.joinError = ''; go({ name: 'list' }, false);
       } catch (err2) { S.joinError = err2.message; renderJoin(); }
       finally { if (lbl.isConnected) lbl.innerHTML = old; }
@@ -183,6 +190,7 @@ function renderJoin() {
       try {
         if (mode === 'code') await join({ code: input.value });
         else await joinByName(input.value, () => { btn.textContent = 'กำลังตรวจสอบ… อาจใช้เวลาสักครู่'; });
+        await Buddy.cheer($('#buddy'));
         S.joinError = ''; go({ name: 'list' }, false);
       } catch (err2) {
         S.joinError = err2.message; const val = input.value; renderJoin(); $('#j-in').value = val; $('#j-in').focus();

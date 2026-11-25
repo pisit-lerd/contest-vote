@@ -4,7 +4,8 @@ A small web app for costume and performance contests at events: guests join from
 contestant is introduced on the projector, then vote; an admin runs the event, and the projector shows live results and
 a 3 → 2 → 1 reveal.
 
-Pages, served by one Node process: guests (`/`), admin (`/admin`), the big screen (`/screen`), and optionally a
+Pages, served by one Node process: the party landing page with the photo booth (`/`), voting (`/vote`), admin
+(`/admin`), the big screen (`/screen`), and optionally a
 registration desk (`/checkin`) where guests scan to get their vote card (`/claim`).
 No database to set up: data lives in `data/db.json` and contestant photos in `data/uploads/`.
 
@@ -46,6 +47,7 @@ on the Wi-Fi. Phones must be on the same Wi-Fi. If `ADMIN_PASSWORD` is not set, 
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | port `587` | Your company mail server. See "Using company SMTP". Also `SMTP_SECURE` and `SMTP_CA_FILE` (company-issued certificate). |
 | `BREVO_API_KEY` | – | Brevo API key. See "Using Brevo". |
 | `MAIL_DAILY_LIMIT` | Gmail 500 · Brevo 300 · SMTP unlimited | Emails per day, used to warn the admin before sending. `0` = no warning. |
+| `GDRIVE_KEY_FILE` / `GDRIVE_FOLDER_ID` | off | Photo booth: a Google Cloud service account's JSON key, and a folder on a Shared Drive to save pictures in. See "Saving booth pictures to Google Drive". |
 
 ### Keep settings in a .env file
 
@@ -159,6 +161,11 @@ screen while guests cheer → performances (outside this app) → open voting �
 
 ## What guests see
 
+- **The landing page (`/`)** has the event name, whether voting is open, and four ways in: "ถ่ายรูปสนุกๆ" (photo
+  booth), "ส่งประกวดชุด" (enter the costume contest), "Live Score" (the big screen's page) and "ลงชื่อโหวต" (voting,
+  `/vote`). The QR on the big screen and the desk opens this page. Code cards, emails and desk tickets carry
+  `/?c=…`, which goes straight on to `/vote`, so cards printed earlier keep working.
+
 - The entry form is open from the start, before any topic opens, so guests can join during the introductions. It
   says the code is used all evening: cheering during the intro, then voting.
 - **"เปิดจากรูปบัตรที่บันทึกไว้"** (open from a saved card picture): pick a picture of the card, a screenshot or a
@@ -169,6 +176,59 @@ screen while guests cheer → performances (outside this app) → open voting �
   sent. A name the admin gave (the email list, or the staff list in name mode) is shown as is and cannot be changed.
 - Topics come in three groups: waiting for your vote, voted, closed. Contestant photos open full size. After saving,
   the chosen numbers are shown large.
+
+## Photo booth and costume entries
+
+**Photo booth ("ถ่ายรูปสนุกๆ").** Guests pick one of 8 frames, a tall strip or a wide sheet, and 1–4 pictures. The
+page counts 3-2-1 and takes each picture, then shows the finished sheet with "บันทึกลงเครื่อง" (save to this phone).
+
+- A camera inside the page needs https (or `localhost`). Over plain `http://<ip>:3000` phones do not allow it, so the
+  page opens the phone's own camera app once for each picture instead. Everything else works the same.
+- With Google Drive set up (below), every finished sheet is saved to the Drive folder automatically, whether the
+  guest has joined or not. The phone sends it to this server, which checks it is a real JPEG under 3 MB, refuses
+  requests from other websites, keeps the whole room under 30 sheets a minute (joined guests also have their own
+  limit), and uploads it. Pages never see the key or the folder. Without Drive, pictures stay on the phones only.
+- Because no sign-in is needed, anyone who can open the page can send pictures into the folder, up to the room's
+  limit. Check the folder after the event.
+
+**Costume entries ("ส่งประกวดชุด").** Closed until the admin presses "เปิดรับรูป" in the "รูปประกวดชุดจากแขก" card on
+the topics tab. Then a joined guest takes one picture in the IG frame, types name, department and concept (they
+appear on the frame), and sends it. Nothing is public yet: the entry waits in the admin's list. "อนุมัติ" adds it as
+the next number in the chosen topic (name shown as `name (department) · concept`); "ไม่อนุมัติ" deletes the picture.
+The guest sees the status on the photo page. Each guest can have 2 entries waiting and 5 in total. Pictures sent while
+Drive is set up also go to Drive when they are JPEG. Names and departments are personal data in `db.json`,
+like the rest; "ล้างรายการนี้" clears the list after the event (approved contestants stay).
+
+### Saving booth pictures to Google Drive
+
+Needs Google Workspace (company email on Google) with Shared Drives. A Google Cloud *service account* uploads the
+pictures; it has no storage of its own, so the folder must be on a **Shared Drive**, not in someone's My Drive.
+
+1. https://console.cloud.google.com → **New Project** (for example `staff-party-photos`) → **APIs & Services →
+   Library** → `Google Drive API` → **Enable**.
+2. **IAM & Admin → Service Accounts → Create service account** (for example `photo-booth`; skip the roles step).
+   Open it → **Keys → Add key → Create new key → JSON**. A `.json` file downloads. Note the account's email
+   (`…@….iam.gserviceaccount.com`).
+   If key creation is refused ("Service account key creation is disabled"), someone with the Organization Policy
+   Administrator role must allow it for this project: **IAM & Admin → Organization Policies →
+   `iam.disableServiceAccountKeyCreation`**.
+3. https://drive.google.com → **Shared drives → New** → **Manage members** → add the service account's email as
+   **Contributor**. Make a folder for the pictures if you like and copy its ID from the link
+   (`drive.google.com/drive/folders/<ID>`). If Shared drives is missing, or the email cannot be added (it is outside
+   your company), a Workspace admin allows it in https://admin.google.com → **Apps → Google Workspace → Drive and Docs**.
+4. Put the key next to `.env` as `gdrive-key.json` and add to `.env`:
+   ```
+   GDRIVE_KEY_FILE=./gdrive-key.json
+   GDRIVE_FOLDER_ID=<ID>
+   ```
+   Restart. The console prints `Google Drive พร้อม: …` with the folder name, or what is wrong; the admin page shows
+   the same under "รูปประกวดชุดจากแขก".
+
+- The key works like a password for that Shared Drive: never commit it or send it in chat (`.gitignore` and
+  `.dockerignore` already leave out `gdrive-key.json`). Delete the key in the Cloud Console after the event.
+- Docker: mount the file, for example `- ./gdrive-key.json:/app/gdrive-key.json:ro` under `volumes`, set
+  `GDRIVE_KEY_FILE=/app/gdrive-key.json`, and on Linux `chmod 644 gdrive-key.json` (the app runs as `node`).
+- The server must reach `oauth2.googleapis.com` and `www.googleapis.com`. "Saved" means Drive accepted the file.
 
 ## Registration desk
 

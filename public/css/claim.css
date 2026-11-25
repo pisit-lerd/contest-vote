@@ -14,3 +14,6 @@
 .warn { display: flex; gap: var(--sp-2); align-items: flex-start; color: var(--stage-muted); font-size: var(--fs-14); line-height: 1.5; }
 .warn .icon { color: var(--stage-bar); margin-top: 2px; }
 .claim .actions { display: grid; gap: var(--sp-2); }
+
+/* theme: curtain valance across the top */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: 12px; background: var(--curtain); z-index: 2; }
