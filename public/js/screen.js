@@ -11,7 +11,8 @@ const fsBtn = $('#fs');
 const toggleFs = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {});
 fsBtn.addEventListener('click', toggleFs);
 document.addEventListener('keydown', (e) => { if (e.key === 'f' || e.key === 'F') toggleFs(); });
-document.addEventListener('fullscreenchange', () => { fsBtn.hidden = !!document.fullscreenElement; });
+// both corner buttons step aside in full screen, so the projector shows only the stage
+document.addEventListener('fullscreenchange', () => { fsBtn.hidden = $('#home').hidden = !!document.fullscreenElement; });
 
 // the stream when it delivers; otherwise the snapshot every 2 s (live bars stay close to real time)
 liveStream('/api/screen/stream', (data) => {
