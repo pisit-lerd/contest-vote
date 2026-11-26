@@ -159,13 +159,36 @@ function intro(it) {
 
 const gridCols = (n) => (n <= 5 ? 5 : n <= 12 ? 6 : n <= 21 ? 7 : 10);
 
+// live scores as a ranking: 1st large, 2nd and 3rd beside it, everyone else as a numbered list.
+// The page re-sorts from the counts on every update (ties share a place; nobody is placed on 0 votes).
 function live(topic) {
-  return header(topic) + `<div class="s-body"><div class="s-main">
-    <div class="counter"><span class="n" id="voters" style="font-size:4vw">0</span><span class="t">คนโหวตแล้ว</span></div>
-    <div class="bars" style="--n:${topic.contestants.length};--bfs:${Math.min(1.5, 13 / Math.max(topic.contestants.length, 1)).toFixed(2)}vw">${topic.contestants.map((c) => `<div class="bar-row" data-id="${c.id}">
-      <div class="who">${photoHtml(c, 40)}<span class="nm"><span class="no">${esc(c.number)}</span>${esc(c.name)}</span></div>
-      <div class="track"><div class="fill" style="width:0%"></div></div><span class="v">0</span></div>`).join('')}</div>
-    </div>${qrPanel()}</div>`;
+  rankSig = '';
+  return header(topic) + `<div class="rank" id="rank"></div>`;
+}
+let rankSig = '';
+const fmtN = (n) => n.toLocaleString('th-TH');
+function rankHtml(topic, counts, voters) {
+  const list = topic.contestants.map((c) => ({ ...c, n: counts[c.id] || 0 }))
+    .sort((a, b) => b.n - a.n || (parseInt(a.number, 10) || 0) - (parseInt(b.number, 10) || 0) || String(a.number).localeCompare(String(b.number)));
+  if (!list.length) return '<p class="empty-stage">ยังไม่มีผู้เข้าประกวด</p>';
+  const max = Math.max(1, list[0].n);
+  list.forEach((c) => { c.place = c.n ? 1 + list.filter((o) => o.n > c.n).length : 0; });
+  const pic = (c) => (c.photo ? `<img src="${esc(c.photo)}" alt="">` : `<span class="rk-ph">${esc(c.number)}</span>`);
+  const badge = (c) => `<span class="rk-badge">${c.place || '–'}</span>`;
+  const card = (c, i) => `<article class="rk-card rk-${i + 1}${c.place === 1 ? ' lead' : ''}" data-id="${c.id}">
+      <div class="rk-photo">${pic(c)}${badge(c)}</div>
+      <div class="rk-info"><span class="rk-name"><b>${esc(c.number)}</b> ${esc(c.name)}</span>
+        <span class="rk-votes"><b>${fmtN(c.n)}</b> คะแนน</span></div>
+      <div class="rk-track"><i style="width:${(c.n / max) * 100}%"></i></div></article>`;
+  const top = list.slice(0, 3), rest = list.slice(3);
+  return `<div class="rk-first">${card(top[0], 0)}</div>
+    <div class="rk-pair">${top.slice(1).map((c, i) => card(c, i + 1)).join('')}</div>
+    <div class="rk-side">
+      <div class="rk-count"><span class="n" id="voters">${fmtN(voters || 0)}</span><span class="t">คนโหวตแล้ว</span></div>
+      ${rest.length ? `<ol class="rk-list${rest.length > 7 ? ' two' : ''}" style="--rows:${rest.length > 7 ? Math.ceil(rest.length / 2) : rest.length}">${rest.map((c) => `<li data-id="${c.id}"><span class="rk-pos">${c.place || '–'}</span>
+        <span class="rk-mini">${pic(c)}</span><span class="nm"><b>${esc(c.number)}</b> ${esc(c.name)}</span><span class="v">${fmtN(c.n)}</span></li>`).join('')}</ol>` : '<div class="rk-list-empty"></div>'}
+      <aside class="rk-qr"><img src="${qrSrc()}" alt="QR สำหรับเข้าโหวต"><span><b>สแกนเพื่อโหวต</b>${esc(state.voteUrl)}</span></aside>
+    </div>`;
 }
 
 function reveal(topic, s) {
@@ -198,13 +221,17 @@ function patch(topic, s) {
     if (lastVoters !== null && s.voters > lastVoters) { vEl.classList.remove('bump'); void vEl.offsetWidth; vEl.classList.add('bump'); }
     lastVoters = s.voters;
   }
-  if (s.mode === 'live' && s.counts) {
-    const max = Math.max(1, ...Object.values(s.counts));
-    document.querySelectorAll('.bar-row').forEach((row) => {
-      const n = s.counts[row.dataset.id] || 0;
-      row.querySelector('.fill').style.width = (n / max) * 100 + '%';
-      row.querySelector('.v').textContent = n.toLocaleString('th-TH');
-    });
+  const rank = $('#rank');
+  if (rank && s.mode === 'live' && s.counts) {
+    const next = JSON.stringify(s.counts);
+    if (next !== rankSig) {
+      const before = rankSig ? JSON.parse(rankSig) : null;
+      rankSig = next;
+      rank.innerHTML = rankHtml(topic, s.counts, s.voters);
+      lastVoters = s.voters;
+      // whoever just got a vote pulses once
+      if (before) for (const el of rank.querySelectorAll('[data-id]')) if ((s.counts[el.dataset.id] || 0) > (before[el.dataset.id] || 0)) el.classList.add('got');
+    }
   }
 }
 
