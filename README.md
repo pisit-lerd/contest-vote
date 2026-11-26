@@ -236,7 +236,9 @@ so anyone can download them. Without a file the pages stay silent where it would
 ## Photo booth and costume entries
 
 **Photo booth ("ถ่ายรูปสนุกๆ").** Guests pick one of 8 frames, a tall strip or a wide sheet, and 1–4 pictures. The
-page counts 3-2-1 and takes each picture, then shows the finished sheet with "บันทึกลงเครื่อง" (save to this phone),
+camera opens with a "กดถ่าย" (shutter) button: nothing is taken until the guest presses it (or Space / Enter on a
+keyboard), then it counts 3-2-1 and takes that picture, once per picture (5-4-3-2-1 for the costume photo, to step
+back into frame). Then it shows the finished sheet with "บันทึกลงเครื่อง" (save to this phone),
 or "บันทึกรูป" (save) when Drive is set up.
 
 - A camera inside the page needs https (or `localhost`). Over plain `http://<ip>:3000` phones do not allow it, so the

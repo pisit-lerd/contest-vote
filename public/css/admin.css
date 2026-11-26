@@ -110,3 +110,15 @@ table.results td.num, table.results th.num { text-align: right; font-variant-num
 .deadline-row .dl-now b.urgent { color: var(--color-danger); }
 .deadline-row .dl-set { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
 .deadline-row .dl-time { width: auto; min-height: 36px; padding: 0 var(--sp-2); }
+/* phones: all four tabs fit without scrolling (smaller padding, icons hidden on the narrowest screens) */
+@media (max-width: 480px) {
+  .tabs { gap: 0; justify-content: space-between; }
+  .tab { padding: 0 var(--sp-2); gap: var(--sp-1); font-size: var(--fs-14); }
+}
+@media (max-width: 390px) { .tab svg { display: none; } }
+/* phones: the proportion bar column gives its width to the names */
+@media (max-width: 480px) {
+  table.results th:last-child, table.results td:last-child { width: 22% !important; padding-left: 0; }
+  table.results .rbar { min-width: 36px; }
+  table.results th, table.results td { padding: var(--sp-2) var(--sp-1); }
+}

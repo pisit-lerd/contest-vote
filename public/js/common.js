@@ -200,6 +200,15 @@ function liveStream(url, onData, onState, opts = {}) {
     src.onerror = () => { if (es === src) dropStream(true); }; // poll at once, reconnect later
   }
 
+  // back/forward cache: a page the browser keeps for "Back" still holds its stream, and over plain http a host gets
+  // only 6 connections, so after a few page changes the next page waited 5-55 s on a spinner. Close the stream when
+  // the page is hidden that way and reopen it if the page is shown again from the cache.
+  window.addEventListener('pagehide', () => {
+    clearTimeout(pollTimer); pollTimer = null; clearTimeout(watchTimer); clearTimeout(retryTimer);
+    if (es) { es.close(); es = null; }
+    streaming = false;
+  });
+  window.addEventListener('pageshow', (e) => { if (e.persisted && !stopped) { poll(); openStream(); } });
   poll();
   openStream();
   return () => {
@@ -214,6 +223,16 @@ async function busy(btn, fn) {
   if (btn.getAttribute('aria-busy') === 'true') return;
   btn.setAttribute('aria-busy', 'true');
   try { return await fn(); } finally { btn.removeAttribute('aria-busy'); }
+}
+
+/** Fonts for text drawn on a canvas (card pictures, photo frames). The browser only downloads a font when a page
+ * uses it, and Thai and Latin are separate files (unicode-range), so document.fonts.load() without sample text
+ * fetches only the Latin part: Thai was then measured with another font and came out off centre and too wide
+ * (seen on iPhone). Asking with Thai and Latin text loads both. Never rejects. */
+const FONT_SAMPLE = 'กขคงจฉบัตรโหวต่้๊๋ ABCabc 0123';
+function loadFonts(specs) {
+  if (!document.fonts || !document.fonts.load) return Promise.resolve();
+  return Promise.all(specs.map((f) => document.fonts.load(f, FONT_SAMPLE).catch(() => null))).then(() => undefined);
 }
 
 function photoHtml(c, size, cls = '') {

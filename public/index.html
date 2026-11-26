@@ -7,7 +7,9 @@
 <title>Staff Party</title>
 <link rel="icon" href="/img/beneat-icon.png">
 <link rel="stylesheet" href="/fonts/anuphan/400.css">
+<link rel="stylesheet" href="/fonts/anuphan/500.css">
 <link rel="stylesheet" href="/fonts/anuphan/600.css">
+<link rel="stylesheet" href="/fonts/anuphan/700.css">
 <link rel="stylesheet" href="/fonts/party/fonts.css">
 <link rel="stylesheet" href="/css/party.css">
 </head>
@@ -275,7 +277,7 @@
           <div class="res-actions">
             <p class="stage-note left" id="formNote"></p>
             <button class="shutter contest" id="submitContest" type="button" disabled>ส่งประกวด</button>
-            <button class="btn res-btn toy alt" id="formRetake" type="button"><span class="ab-ic retake" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" fill="currentColor" opacity=".25"/><path d="M15.6 10.2A4 4 0 1 0 16 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.4 8.4v2.4H14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rb-t"><b>ถ่ายใหม่</b><small>นับถอยหลัง 5 วินาที แล้วถ่ายอีกครั้ง</small></span><span class="rb-go"><span class="go-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></button>
+            <button class="btn res-btn toy alt" id="formRetake" type="button"><span class="ab-ic retake" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" fill="currentColor" opacity=".25"/><path d="M15.6 10.2A4 4 0 1 0 16 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.4 8.4v2.4H14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rb-t"><b>ถ่ายใหม่</b><small>เปิดกล้อง กดถ่ายเมื่อพร้อม แล้วนับถอยหลัง 5 วินาที</small></span><span class="rb-go"><span class="go-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></button>
           </div>
         </div>
       </div>
@@ -304,6 +306,7 @@
   <div class="shoot-lbl" id="shootLbl"></div>
   <div class="shoot-err" id="shootErr" hidden role="alert"><b>เปิดกล้องไม่ได้</b><p id="shootErrText"></p><button class="btn primary" id="shootRetry" type="button">ลองอีกครั้ง</button></div>
   <button class="shoot-cancel" id="shootCancel" type="button">ยกเลิก</button>
+  <button class="shoot-go" id="shootGo" type="button" hidden aria-label="กดเพื่อถ่ายรูป"><span class="sg-ring" aria-hidden="true"></span><span class="sg-t">กดถ่าย</span></button>
   <button class="shoot-flip" id="shootFlip" type="button" hidden aria-label="สลับกล้องหน้า/หลัง"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.6 12.2a3.4 3.4 0 0 1 5.9-2.1M15.4 11.8a3.4 3.4 0 0 1-5.9 2.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14.9 8.2v2.2h-2.2M9.1 15.8v-2.2h2.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>สลับกล้อง</span></button>
   <div class="shoot-flash" id="shootFlash"></div>
   <video id="liveVid" playsinline muted></video>

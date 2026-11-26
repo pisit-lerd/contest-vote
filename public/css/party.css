@@ -1436,3 +1436,22 @@ body.host-open .booth-hero .gear-btn{background:#FFF8F0;color:#A8461B;border-col
 .welcome-in:focus-visible .w-title{outline:3px solid #FFF8F0;outline-offset:6px}
 @keyframes wPulse{50%{transform:scale(1.05);box-shadow:0 0 0 12px rgba(255,248,240,.22),0 16px 34px -14px rgba(60,15,0,.8)}}
 @media (prefers-reduced-motion:reduce){.w-title{animation:none}.welcome{transition:none}}
+/* narrow phones: the hero's deadline pill stays on one line next to the speaker button */
+@media (max-width:480px){
+  .booth-hero .hs-timer{gap:8px;padding:8px 14px;min-width:0;max-width:100%}
+  .booth-hero .hs-timer .hs-k{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .booth-hero .hs-timer .hs-v{font-size:22px;flex:none}
+}
+/* shutter: the countdown starts only when the guest presses it */
+.shoot-go{position:absolute;left:50%;bottom:max(18px,calc(env(safe-area-inset-bottom,0px) + 10px));transform:translateX(-50%);z-index:3;display:inline-flex;align-items:center;gap:14px;padding:10px 26px 10px 10px;border-radius:999px;border:2px solid rgba(255,255,255,.85);background:rgba(10,20,40,.55);color:#fff;font-family:Mitr,Anuphan,sans-serif;font-weight:500;font-size:20px;line-height:1;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(0,0,0,.45);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.shoot-go[hidden]{display:none}
+.shoot-go .sg-t{white-space:nowrap}
+.shoot-go .sg-ring{width:56px;height:56px;border-radius:50%;border:4px solid #fff;display:grid;place-items:center;flex:none}
+.shoot-go .sg-ring::after{content:"";width:40px;height:40px;border-radius:50%;background:linear-gradient(160deg,#ff9a4d,#e8590c);transition:transform .15s}
+.shoot-go:hover .sg-ring::after{transform:scale(1.06)}
+.shoot-go:active .sg-ring::after{transform:scale(.86)}
+.shoot-go:focus-visible{outline:3px solid #8FE3FF;outline-offset:3px}
+.shoot-go{animation:sgPulse 1.8s ease-in-out infinite}
+@keyframes sgPulse{50%{box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 0 8px rgba(255,154,77,.25)}}
+@media (max-width:420px){.shoot-go{font-size:18px;padding-right:20px}.shoot-go .sg-ring{width:50px;height:50px}.shoot-go .sg-ring::after{width:35px;height:35px}}
+@media (prefers-reduced-motion:reduce){.shoot-go{animation:none}}

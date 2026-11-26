@@ -163,6 +163,7 @@ function shuffleCards() {
   const grid = document.querySelector('.c-grid');
   if (!grid || document.hidden) return;
   const cards = [...grid.children].filter((c) => c.classList.contains('c-card'));
+  if (cards.length === 1) return soloHype(grid, cards[0]);
   if (cards.length < 2) return;
   const pool = cards.slice();
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
@@ -182,6 +183,27 @@ function shuffleCards() {
     fx.style.top = ((ra.top + ra.height / 2 + rb.top + rb.height / 2) / 2 - box.top) + 'px';
     grid.append(fx); setTimeout(() => fx.remove(), 1000);
   }
+}
+// only one contestant: nobody to clash with, so the box powers up on the beat instead (jump, wiggle, glow, sparkles)
+function soloHype(grid, card) {
+  card.animate([
+    { transform: 'none' },
+    { transform: 'translateY(-7%) scale(1.07) rotate(-3deg)', offset: 0.25, easing: 'cubic-bezier(.2,.8,.4,1)' },
+    { transform: 'translateY(0) scale(.97) rotate(2.5deg)', offset: 0.5 },
+    { transform: 'translateY(-3%) scale(1.03) rotate(-1.5deg)', offset: 0.7 },
+    { transform: 'none' },
+  ], { duration: 1100, easing: 'ease-out' });
+  card.classList.remove('solo-glow'); void card.offsetWidth; card.classList.add('solo-glow');
+  const box = grid.getBoundingClientRect(), r = card.getBoundingClientRect();
+  ['✨', '⭐', '✨'].forEach((ch, i) => {
+    const fx = document.createElement('span');
+    fx.className = 'solo-fx'; fx.textContent = ch;
+    const a = (-60 + i * 60 + (Math.random() * 30 - 15)) * Math.PI / 180; // above the box, fanned out
+    fx.style.left = (r.left - box.left + r.width / 2 + Math.sin(a) * r.width * 0.42) + 'px';
+    fx.style.top = (r.top - box.top + r.height * 0.32 - Math.cos(a) * r.height * 0.22) + 'px';
+    fx.style.animationDelay = (0.12 + i * 0.1) + 's';
+    grid.append(fx); setTimeout(() => fx.remove(), 1500);
+  });
 }
 function swapNodes(a, b) {
   const mark = document.createComment('');
@@ -229,7 +251,7 @@ function entryHowTo() {
     <h2>ส่งประกวดชุด <span>(Best Costume)</span></h2>
     <p class="howto-sub">ถ่ายจากตู้หรือถ่ายจากมือถือผู้ที่สนใจประกวดได้</p>
     <ol>
-      <li>กด “ส่งประกวดชุด” แล้วยืนให้เต็มกรอบ ระบบนับถอยหลัง 5 วินาที</li>
+      <li>กด “ส่งประกวดชุด” ยืนให้เต็มกรอบ แล้วกดปุ่ม “กดถ่าย” ระบบนับถอยหลัง 5 วินาที</li>
       <li>ชอบรูปแล้วกดบันทึก จากนั้นกรอก ชื่อ / แผนก / Concept ชุด</li>
       <li>${!state.entries.auto ? 'รูปจะขึ้นบน Live Score เมื่อแอดมินอนุมัติ' : state.entries.live ? 'รูปจะขึ้นบน Live Score ทันที' : 'รูปจะขึ้นบน Live Score เมื่อเปิดโหวต'}</li>
     </ol>
@@ -239,7 +261,7 @@ function entryHowTo() {
 function hidden(topic) {
   return header(topic) + `<div class="s-body"><div class="s-main">
     <div class="counter"><span class="n" id="voters">0</span><span class="t">คนโหวตแล้ว</span></div>
-    ${topic.contestants.length ? `<div class="c-grid" style="--cols:${gridCols(topic.contestants.length)}">${topic.contestants.map((c) => `<div class="c-card">
+    ${topic.contestants.length ? `<div class="c-grid${topic.contestants.length <= 3 ? ' few' : ''}" style="--cols:${gridCols(topic.contestants.length)};--n:${topic.contestants.length}">${topic.contestants.map((c) => `<div class="c-card">
       ${c.photo ? `<img class="ph" src="${esc(c.photo)}" alt="">` : `<div class="photo-ph">${esc(c.number)}</div>`}
       <span class="nm"><span class="no">${esc(c.number)}</span> ${esc(c.name)}</span></div>`).join('')}</div>` : '<p class="empty-stage">ยังไม่มีผู้เข้าประกวด</p>'}
     </div>${qrPanel()}</div>`;

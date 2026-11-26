@@ -88,23 +88,24 @@ async function saveImage(card) {
   const W = 1080, H = 1440, P = 72;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const ctx = c.getContext('2d');
-  await Promise.all(['700 56px Anuphan', '400 36px Anuphan'].map((f) => document.fonts.load(f)));
+  await loadFonts(['700 56px Anuphan', '400 36px Anuphan', '400 30px Anuphan']);
+  const MAXW = W - 4 * P; // every line is also squeezed to fit, so nothing runs off the card whatever the font
   ctx.fillStyle = '#140c0b'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#ffffff';
   ctx.beginPath(); ctx.roundRect(P, P, W - 2 * P, H - 2 * P, 40); ctx.fill();
   ctx.textAlign = 'center'; ctx.fillStyle = '#1f1715';
   ctx.font = '700 56px Anuphan';
   let y = P + 120;
-  for (const l of wrap(ctx, card.eventName, W - 4 * P).slice(0, 2)) { ctx.fillText(l, W / 2, y); y += 80; }
-  ctx.font = '400 36px Anuphan'; ctx.fillStyle = '#6b5f5c'; ctx.fillText('บัตรโหวต', W / 2, y + 10);
+  for (const l of wrap(ctx, card.eventName, MAXW).slice(0, 2)) { ctx.fillText(l, W / 2, y, MAXW); y += 80; }
+  ctx.font = '400 36px Anuphan'; ctx.fillStyle = '#6b5f5c'; ctx.fillText('บัตรโหวต', W / 2, y + 10, MAXW);
   const qr = await loadSvg(card.qr);
   const Q = 620; ctx.imageSmoothingEnabled = false;
   ctx.drawImage(qr, (W - Q) / 2, y + 60, Q, Q);
   ctx.fillStyle = '#1f1715'; ctx.font = '700 88px ui-monospace, Menlo, monospace';
-  ctx.fillText(card.code, W / 2, y + 60 + Q + 120);
+  ctx.fillText(card.code, W / 2, y + 60 + Q + 120, MAXW);
   ctx.fillStyle = '#6b5f5c'; ctx.font = '400 30px Anuphan';
   let y2 = y + 60 + Q + 200;
-  for (const l of wrap(ctx, `สแกน QR หรือเข้า ${card.voteUrl} แล้วกรอกรหัส · อย่าโพสต์หรือส่งต่อ`, W - 4 * P)) { ctx.fillText(l, W / 2, y2); y2 += 46; }
+  for (const l of wrap(ctx, `สแกน QR หรือเข้า ${card.voteUrl} แล้วกรอกรหัส · อย่าโพสต์หรือส่งต่อ`, MAXW)) { ctx.fillText(l, W / 2, y2, MAXW); y2 += 46; }
   const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
   const name = `บัตรโหวต-${card.code}.png`;
   const file = new File([blob], name, { type: 'image/png' });
