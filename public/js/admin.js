@@ -122,7 +122,7 @@ function renderShell() {
 function renderMain() {
   const main = $('#main');
   if (!main || !A.st) return;
-  noteServerTime(A.st.now); noteTopics(A.st.topics);
+  noteServerTime(A.st.now); // countdowns only: the control device plays no time's-up sounds (no noteTopics)
   $('#ev-title').textContent = A.st.event.name;
   document.title = 'แอดมิน · ' + A.st.event.name;
   const y = window.scrollY;
