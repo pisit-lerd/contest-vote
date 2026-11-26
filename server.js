@@ -153,6 +153,9 @@ const normCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').
 const codeSig = (code) => crypto.createHmac('sha256', db.secret).update('code:' + code).digest('base64url').slice(0, 16);
 /** printed cards = every code that was not handed out by email or at the check-in desk */
 const isCardCode = (code) => !!db.codes[code] && !db.codes[code].mail && !db.codes[code].desk;
+const isDeskCode = (code) => !!db.codes[code] && !!db.codes[code].desk;
+/** what "ลบรหัสทั้งหมด" removes: printed cards and cards from the check-in desk (emailed codes have their own list) */
+const isClearable = (code) => isCardCode(code) || isDeskCode(code);
 function newCode(extra = {}) {
   let code;
   do code = randomString(CODE_LENGTH, CODE_ALPHABET); while (db.codes[code]);
@@ -898,7 +901,7 @@ function adminState() {
     }),
     // printed-card codes only; emailed codes are counted under mail
     codes: { total: Object.keys(db.codes).filter(isCardCode).length, used: [...usedCodes()].filter(isCardCode).length },
-    desk: { handed: db.desk.handed || 0 },
+    desk: { handed: db.desk.handed || 0, codes: Object.keys(db.codes).filter(isDeskCode).length },
     mail: mailSummary(),
     publicLink: publicLink(),
     roster: { count: db.roster.length, unlistedWithVotes },
@@ -1698,10 +1701,13 @@ app.get('/api/admin/codes', async (req, res) => {
 });
 
 app.delete('/api/admin/codes', (req, res) => {
-  const hasCodeVotes = Object.values(db.ballots).some((b) => Object.keys(b).some((vid) => db.voters[vid]?.kind === 'code' && isCardCode(db.voters[vid].key)));
+  const hasCodeVotes = Object.values(db.ballots).some((b) => Object.keys(b).some((vid) => db.voters[vid]?.kind === 'code' && isClearable(db.voters[vid].key)));
   if (hasCodeVotes) return fail(res, 409, 'มีคนใช้รหัสโหวตแล้ว ลบรหัสไม่ได้ ต้องล้างผลโหวตทั้งหมดก่อน');
-  const gone = new Set(Object.keys(db.codes).filter(isCardCode)); // emailed and desk codes stay
+  // printed cards and desk cards go; emailed codes stay (they are removed one by one from the email list)
+  const gone = new Set(Object.keys(db.codes).filter(isClearable));
   for (const code of gone) delete db.codes[code];
+  // the desk starts again from 0, and the QR on its screen now is replaced
+  db.desk = { ticket: null, handed: 0 };
   // whoever already joined with a deleted card is signed out too: deleting is how lost or stolen cards are cancelled
   const voterIds = Object.values(db.voters).filter((v) => v.kind === 'code' && gone.has(v.key)).map((v) => v.id);
   dropSessions(voterIds);

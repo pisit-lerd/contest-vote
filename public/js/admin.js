@@ -462,7 +462,7 @@ function tabSettings() {
       <p class="hint">แนะนำให้สร้างเผื่อจำนวนคนสัก 10% · รหัสแต่ละใบโหวตได้ตามจำนวนที่แต่ละหัวข้อกำหนด${st.mail.total ? ' · รหัสที่ส่งทางอีเมลไม่นับรวมที่นี่และไม่ถูกพิมพ์เป็นบัตร' : ''}</p>
       <div class="row">
         ${st.codes.total ? `<a class="btn" href="/print" target="_blank" rel="noopener">${icon('printer')}พิมพ์บัตรรหัส</a>` : `<button class="btn" disabled>${icon('printer')}พิมพ์บัตรรหัส</button>`}
-        ${st.codes.total ? `<button class="btn btn-danger" data-act="del-codes">${icon('trash')}ลบรหัสทั้งหมด</button>` : ''}
+        ${st.codes.total || st.desk?.codes || st.desk?.handed ? `<button class="btn btn-danger" data-act="del-codes">${icon('trash')}ลบรหัสทั้งหมด</button>` : ''}
       </div>
     </section>
     <section class="card panel" id="desk-box">
@@ -830,7 +830,11 @@ async function onAct(e) {
     case 'step':
       act(b, 'screen', () => api('PUT', '/api/admin/screen', { revealStep: Number(b.dataset.step) })); break;
     case 'del-codes': {
-      const ok = await confirmDialog({ title: `ลบรหัสโหวตทั้งหมด ${A.st.codes.total} รหัส?`, body: 'บัตรที่พิมพ์ไปแล้วจะใช้ไม่ได้ ต้องสร้างและพิมพ์ใหม่', confirmLabel: 'ลบรหัสทั้งหมด', cancelLabel: 'เก็บไว้' });
+      const desk = A.st.desk?.codes || 0;
+      const ok = await confirmDialog({
+        title: `ลบรหัสโหวตทั้งหมด ${(A.st.codes.total + desk).toLocaleString('th-TH')} รหัส?`,
+        body: `บัตรที่พิมพ์ไปแล้ว${desk ? ` และบัตรที่แขกรับจากจุดลงทะเบียน ${desk.toLocaleString('th-TH')} ใบ` : ''}จะใช้ไม่ได้ ตัวนับ "รับบัตรที่จุดลงทะเบียนแล้ว" กลับเป็น 0 · รหัสที่ส่งทางอีเมลยังอยู่`,
+        confirmLabel: 'ลบรหัสทั้งหมด', cancelLabel: 'เก็บไว้' });
       if (ok) act(b, 'codes', () => api('DELETE', '/api/admin/codes'), 'ลบรหัสแล้ว');
       break;
     }

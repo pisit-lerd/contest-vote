@@ -427,6 +427,20 @@ async function main() {
     assert.equal((await req('POST', '/api/vote', { topicId: t1.id, picks: [c1[0].id] }, { 'X-Voter-Token': t })).status, 401, 'deleted card: cannot vote');
   }
   assert.equal((await req('POST', '/api/join', { code: stolen[0].code })).status, 404, 'deleted card: code no longer works');
+  // "ลบรหัสทั้งหมด" also clears cards from the check-in desk and its counter (it stayed at the old number before)
+  const deskTokens = [];
+  for (let i = 0; i < 2; i++) {
+    ok(await req('POST', '/api/admin/desk', { skip: true }));
+    await new Promise((r) => setTimeout(r, 400)); // the ticket reaches db.json after the save delay
+    const t = JSON.parse(fs.readFileSync(path.join(DATA, 'db.json'), 'utf8')).desk.ticket.t;
+    deskTokens.push(ok(await req('POST', '/api/desk/claim', { t })).token);
+  }
+  let ds = ok(await req('GET', '/api/admin/state')).desk;
+  assert.deepEqual([ds.handed, ds.codes], [2, 2], 'desk counted two cards');
+  ok(await req('DELETE', '/api/admin/codes'));
+  ds = ok(await req('GET', '/api/admin/state')).desk;
+  assert.deepEqual([ds.handed, ds.codes], [0, 0], 'deleting all codes resets the desk count');
+  for (const t of deskTokens) assert.equal((await req('GET', '/api/me', undefined, { 'X-Voter-Token': t })).status, 401, 'deleted desk card: session ended');
   st = ok(await req('POST', '/api/admin/codes', { count: 220 }));
   assert.equal(st.codes.total, 220);
   const codes = ok(await req('GET', '/api/admin/codes?qr=1')).codes;
