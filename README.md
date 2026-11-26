@@ -274,7 +274,8 @@ pictures; it has no storage of its own, so the folder must be on a **Shared Driv
    GDRIVE_FOLDER_ID=<ID>
    ```
    Restart. The console prints `Google Drive พร้อม: …` with the folder name, or what is wrong; the admin page shows
-   the same under "รูปประกวดชุดจากแขก".
+   the same under "รูปประกวดชุดจากแขก". Inside that folder the server keeps `photobooth/` (booth sheets) and
+   `contest/` (costume photos) apart, making them on first start if they are not there yet.
 
 - The key works like a password for that Shared Drive: never commit it or send it in chat (`.gitignore` and
   `.dockerignore` already leave out `gdrive-key.json`). Delete the key in the Cloud Console after the event.

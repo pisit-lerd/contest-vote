@@ -101,7 +101,7 @@ async function photoPageChecks() {
   const keyFile = path.join(DATA, 'gdrive-key.json');
   fs.writeFileSync(keyFile, JSON.stringify({ type: 'service_account', client_email: 'booth@test.iam.gserviceaccount.com',
     private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }), token_uri: 'https://oauth2.googleapis.com/token' }));
-  const drive = { mode: 'ok', sent: [], tokens: 0, token: '' };
+  const drive = { mode: 'ok', sent: [], tokens: 0, token: '', folders: [] }; // folders: [{ id, name, parent }]
   const driveSrv = require('http').createServer((rq, rs) => {
     const chunks = []; rq.on('data', (d) => chunks.push(d)); rq.on('end', () => {
       const body = Buffer.concat(chunks);
@@ -117,6 +117,19 @@ async function photoPageChecks() {
       if (rq.headers.authorization !== 'Bearer ' + drive.token) return reply(401, { error: { message: 'Invalid Credentials' } });
       if (rq.method === 'GET' && rq.url.startsWith(`/drive/v3/files/${FOLDER}?`)) {
         return reply(200, { id: FOLDER, name: 'Party Photos', mimeType: 'application/vnd.google-apps.folder', driveId: '0Ashared' });
+      }
+      // subfolders: list by name inside the event folder, or create one
+      if (rq.method === 'GET' && rq.url.startsWith('/drive/v3/files?q=')) {
+        const q = decodeURIComponent(rq.url.split('q=')[1].split('&')[0]);
+        const name = q.match(/name = '([^']+)'/)[1], parent = q.match(/'([^']+)' in parents/)[1];
+        return reply(200, { files: drive.folders.filter((f) => f.name === name && f.parent === parent).map((f) => ({ id: f.id })) });
+      }
+      if (rq.method === 'POST' && rq.url.startsWith('/drive/v3/files?supportsAllDrives=true')) {
+        const meta = JSON.parse(body.toString());
+        assert.equal(meta.mimeType, 'application/vnd.google-apps.folder');
+        const f = { id: 'sub' + (drive.folders.length + 1), name: meta.name, parent: meta.parents[0] };
+        drive.folders.push(f);
+        return reply(200, { id: f.id });
       }
       if (rq.method === 'POST' && rq.url.startsWith('/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true')) {
         if (drive.mode === 'fail') return reply(403, { error: { message: 'Insufficient permissions for the specified parent.' } });
@@ -137,6 +150,9 @@ async function photoPageChecks() {
   for (let i = 0; i < 50 && !(ds && ds.ok !== null); i++) { ds = ok(await req('GET', '/api/admin/state')).drive; await new Promise((r) => setTimeout(r, 100)); }
   assert.equal(ds.ok, true, JSON.stringify(ds));
   assert.equal(ds.folderName, 'Party Photos');
+  // a folder per kind of picture, made once inside the event folder at start
+  assert.deepEqual(drive.folders.map((f) => [f.name, f.parent]).sort(), [['contest', FOLDER], ['photobooth', FOLDER]]);
+  const boothFolder = drive.folders.find((f) => f.name === 'photobooth').id;
 
   // "/" is the landing page; old card links (/?c=…) still reach the voting page
   const old = await fetch(BASE + '/?c=ABCDEFGH&s=sig123', { redirect: 'manual' });
@@ -166,9 +182,10 @@ async function photoPageChecks() {
   ok(await req('POST', '/api/booth', { photo: jpeg }, H));
   assert.equal(drive.sent.length, 2);
   assert.match(drive.sent[0].meta.name, /^photobooth-[\w-]+\.jpg$/);
-  assert.deepEqual(drive.sent[0].meta.parents, [FOLDER]);
+  assert.deepEqual(drive.sent[0].meta.parents, [boothFolder], 'booth pictures go into the photobooth folder');
   assert.ok(drive.sent[0].data.equals(Buffer.from(jpeg.split(',')[1], 'base64')), 'picture arrives byte for byte');
   assert.equal(drive.tokens, 1, 'one token, reused');
+  assert.equal(drive.folders.length, 2, 'folders are found again, not made twice');
   drive.mode = 'fail';
   assert.equal((await req('POST', '/api/booth', { photo: jpeg }, H)).status, 502);
   assert.match(ok(await req('GET', '/api/admin/state')).drive.error, /สิทธิ์/, 'admin sees why Drive failed');
@@ -249,6 +266,15 @@ async function photoPageChecks() {
   assert.equal(ok(await req('GET', '/api/me', undefined, H2)).entries.find((e) => e.name === 'เมฆ').live, false);
   ok(await req('PUT', `/api/admin/topics/${later.id}`, { status: 'open' }));
   assert.equal(ok(await req('GET', '/api/me', undefined, H2)).entries.find((e) => e.name === 'เมฆ').live, true, 'live once voting opens');
+  // a JPEG costume photo also goes to Drive, into the contest folder
+  const code3 = ok(await req('GET', '/api/admin/codes')).codes.find((x) => !x.used).code;
+  const H3 = { 'X-Voter-Token': ok(await req('POST', '/api/join', { code: code3 })).token };
+  const before = drive.sent.length;
+  ok(await entry({ name: 'ฝน', photo: jpeg }, H3));
+  for (let i = 0; i < 30 && drive.sent.length === before; i++) await new Promise((r) => setTimeout(r, 100));
+  const sentContest = drive.sent[drive.sent.length - 1];
+  assert.match(sentContest.meta.name, /^contest-ฝน-CS-/);
+  assert.deepEqual(sentContest.meta.parents, [drive.folders.find((f) => f.name === 'contest').id], 'costume pictures go into the contest folder');
   driveSrv.close();
 }
 
