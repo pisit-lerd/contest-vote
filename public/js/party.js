@@ -141,7 +141,7 @@ function renderBoothSetup() {
   for (const b of document.querySelectorAll('#shapeRow button')) b.setAttribute('aria-checked', String(b.dataset.shape === P.shape));
   const save = P.pub?.booth.drive ? 'ชอบแล้วค่อยกด “บันทึกรูป” เก็บลงเครื่องและส่งเข้า Google Drive ของงาน' : 'แล้วกดบันทึกลงเครื่องได้';
   $('#boothHow').textContent = liveCamera()
-    ? `กด “เริ่มถ่าย” แล้วกล้องจะเปิดเต็มจอ นับ 3-2-1 และถ่ายเองทีละรูปจนครบ ${P.n} รูป ${save}`
+    ? `กด “เริ่มถ่าย” แล้วกล้องจะเปิดเต็มจอ พร้อมเมื่อไรกดปุ่ม “กดถ่าย” ระบบนับ 3-2-1 แล้วถ่าย ทำทีละรูปจนครบ ${P.n} รูป ${save}`
     : `กด “เริ่มถ่าย” แล้วแตะเปิดกล้องของเครื่องทีละรูปจนครบ ${P.n} รูป ${save}`;
   drawAll();
 }
@@ -180,7 +180,7 @@ function renderContestForm() {
   renderFlow($('#formFlow'), flowContest(), 2);
   const fr = $('#formRetake');
   fr.querySelector('b').textContent = P.contestFrom === 'gallery' ? 'เลือกรูปอื่น' : 'ถ่ายใหม่';
-  fr.querySelector('small').textContent = P.contestFrom === 'gallery' ? 'เปิดคลังภาพอีกครั้ง' : 'นับถอยหลัง 5 วินาที แล้วถ่ายอีกครั้ง';
+  fr.querySelector('small').textContent = P.contestFrom === 'gallery' ? 'เปิดคลังภาพอีกครั้ง' : 'เปิดกล้อง กดถ่ายเมื่อพร้อม แล้วนับถอยหลัง 5 วินาที';
   $('#formNote').textContent = !autoEntries() ? 'รูปจะไปรอให้แอดมินตรวจก่อน ผ่านแล้วจึงขึ้นให้โหวต'
     : liveEntries() ? 'กดส่งแล้วรูปจะขึ้นหน้าโหวตและ Live Score ทันที' : 'กดส่งแล้วรูปจะเก็บไว้ในหัวข้อประกวด และขึ้น Live Score เมื่อเปิดโหวต';
   for (const [id, k] of [['#fName', 'cName'], ['#fDept', 'cDept'], ['#fConcept', 'cConcept']]) { const el = $(id); if (el.value !== P[k]) el.value = P[k]; }
@@ -295,6 +295,8 @@ async function runLive() {
   SH.loop = setInterval(() => { if (v.videoWidth) drawShoot(grabFrame(v, camMirror(), 640)); }, 70);
   for (let k = 0; k < SH.n; k++) {
     SH.k = k; $('#shootLbl').textContent = shotLabel();
+    // the guest decides when: the countdown starts only once they press the shutter (no automatic countdown)
+    if (!(await waitShutter())) return;
     for (const d of (SH.mode === 'contest' ? ['5', '4', '3', '2', '1'] : ['3', '2', '1'])) {
       while (SH.switching && !SH.cancelled) await sleep(100);
       if (SH.cancelled) return;
@@ -306,6 +308,20 @@ async function runLive() {
   }
   SH.k = SH.n; clearInterval(SH.loop); SH.loop = null; drawShoot(null);
   finishShoot();
+}
+/* shutter button on the live camera: resolves true when pressed (or Space / Enter on a keyboard), false if the
+   shoot is cancelled meanwhile. The button hides while the countdown runs. */
+function waitShutter() {
+  const b = $('#shootGo');
+  b.querySelector('.sg-t').textContent = SH.n > 1 ? `กดถ่ายรูปที่ ${SH.k + 1}` : 'กดถ่าย';
+  b.hidden = false; b.disabled = false;
+  return new Promise((resolve) => {
+    const done = (ok) => { b.removeEventListener('click', go); document.removeEventListener('keydown', key); clearInterval(watch); b.hidden = true; resolve(ok); };
+    const go = () => { if (!SH.switching) done(true); };
+    const key = (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && !(e.target instanceof Element && e.target.closest('button:not(#shootGo), input, textarea'))) { e.preventDefault(); go(); } };
+    const watch = setInterval(() => { if (SH.cancelled || !SH.active) done(false); }, 150);
+    b.addEventListener('click', go); document.addEventListener('keydown', key);
+  });
 }
 /* no live camera (plain http): one tap per shot opens the phone's camera app */
 function tapButton(label) {
@@ -339,7 +355,7 @@ function stopCamera() {
   $('#liveVid').srcObject = null; SH.stream = null;
   releaseCameraSoon();
 }
-function closeShoot() { $('#shoot').hidden = true; document.body.classList.remove('noscroll'); tapButton(null); }
+function closeShoot() { $('#shoot').hidden = true; $('#shootGo').hidden = true; document.body.classList.remove('noscroll'); tapButton(null); }
 function cancelShoot() {
   SH.cancelled = true; SH.active = false; stopCamera(); closeShoot();
   renderScreen();
