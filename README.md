@@ -163,7 +163,9 @@ screen while guests cheer → performances (outside this app) → open voting �
 
 - **The landing page (`/`)** has the event name, whether voting is open, and four ways in: "ถ่ายรูปสนุกๆ" (photo
   booth), "ส่งประกวดชุด" (enter the costume contest), "Live Score" (the big screen's page) and "ลงชื่อโหวต" (voting,
-  `/vote`). The QR on the big screen and the desk opens this page. Code cards, emails and desk tickets carry
+  `/vote`). "Live Score" and "ลงชื่อโหวต" stay greyed out until the admin opens a topic (or starts the
+  contestant intro, when guests join to cheer); cards and QR links still go straight to voting. The QR on the big
+  screen and the desk opens this page. Code cards, emails and desk tickets carry
   `/?c=…`, which goes straight on to `/vote`, so cards printed earlier keep working.
 
 - The entry form is open from the start, before any topic opens, so guests can join during the introductions. It
@@ -176,6 +178,43 @@ screen while guests cheer → performances (outside this app) → open voting �
   sent. A name the admin gave (the email list, or the staff list in name mode) is shown as is and cannot be changed.
 - Topics come in three groups: waiting for your vote, voted, closed. Contestant photos open full size. After saving,
   the chosen numbers are shown large.
+
+## Voting deadline and countdown
+
+An open topic can close by itself: in its card on the topics tab press "ปิดใน 5 / 10 / 15 / 30 นาที", or pick a time
+and press "ตั้งเวลา" (a time already passed today means tomorrow; up to 24 hours ahead). "ยกเลิกเวลา" removes it.
+The server closes the topic at that moment and refuses votes after it, whatever a phone's clock says.
+
+The time left counts down on the landing page pill ("โหวตได้ถึง 21:30 น. · อีก 09:58", the soonest closing topic),
+on each topic card and topic page of `/vote`, on the big screen next to the title (and in the lobby's topic list),
+and in the admin card. It turns red in the last minute. Pages correct for a phone clock that is off using the
+server's time sent with each update. Closing a topic by hand, or reopening it, drops the old deadline.
+
+With one minute left, those pages play a short clip, `public/sounds/iron-chep.mp3` (replace the file to change it).
+When the time runs out, every page that was counting down shows a shaking "⏰ หมดเวลา!" stamp, plays a buzzer
+followed by `public/sounds/time-up.mp3`, and phones vibrate. Guest pages (the landing page with its photo screens,
+`/vote` and `/claim`) loop `public/sounds/home-loop.mp3`, on by default, and carry it on from the same spot when the
+guest moves between them. Browsers hold sound back until someone taps the page, so it starts at once where the
+browser allows it and otherwise at the first tap anywhere (the speaker button pulses meanwhile). The speaker button on the landing page
+and on `/vote` turns it off, remembered on that phone; it dips under the warning sounds. The big screen and admin
+play no music. Browsers only play sound after someone has tapped or pressed a key on that page, so on the projector
+press "เต็มจอ" or F once before voting starts; a phone that has been tapped (to vote) plays it too, unless it is on
+silent. A page opened after the deadline passed does not sound.
+
+### Sounds
+
+The clips are not in the repository (they may be copyrighted, and the repository is public). Put these three MP3
+files in `public/sounds/` on each machine that runs the app, before `docker compose up -d --build` (the image takes
+them from there):
+
+| File | Plays |
+|---|---|
+| `home-loop.mp3` | looped on the guest pages |
+| `iron-chep.mp3` | one minute before a topic closes |
+| `time-up.mp3` | after the time's-up buzzer |
+
+Without them the pages stay silent where the clip would play (the buzzer and the "หมดเวลา!" stamp still work).
+Copy them to a server with, for example, `scp public/sounds/*.mp3 user@server:~/contest-vote/public/sounds/`.
 
 ## Photo booth and costume entries
 
@@ -202,7 +241,8 @@ appear on the frame), and sends it. In the same card the admin picks the topic g
 - "รอแอดมินอนุมัติ": the entry waits in the card; "อนุมัติ" adds it as the next number in the chosen topic,
   "ไม่อนุมัติ" deletes the picture.
 
-Contestants made from entries are named `name (department) · concept`. The guest sees the status on the photo page. While entries are open, the big screen's lobby (the QR page) shows a short
+Contestants made from entries are named `name (department) · concept`. The guest sees the status on the photo page
+("รอเปิดโหวต" while the topic is not open yet). While entries are open, the big screen's lobby (the QR page) shows a short
 "ส่งประกวดชุด (Best Costume)" how-to under the event name. Each guest can have 2 entries waiting and 5 in total. Pictures sent while
 Drive is set up also go to Drive when they are JPEG. Names and departments are personal data in `db.json`,
 like the rest; "ล้างรายการนี้" clears the list after the event (approved contestants stay).

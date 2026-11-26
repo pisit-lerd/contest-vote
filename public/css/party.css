@@ -1402,3 +1402,22 @@ body.host-open .booth-hero .gear-btn{background:#FFF8F0;color:#A8461B;border-col
 .pick-photo{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px 18px;border-radius:999px;border:2px solid #B24A1A;background:#fff;color:#9E3F16;font:500 17px/1.2 Mitr,Anuphan,sans-serif;cursor:pointer}
 .pick-photo svg{width:22px;height:22px;flex:none}
 .pick-photo:hover{background:#FCE3D0}
+
+/* Live Score / ลงชื่อโหวต before the admin opens voting */
+.booth-hero .bh-link[aria-disabled="true"]{opacity:.45;cursor:not-allowed;border-bottom-style:dashed}
+.booth-hero .bh-link[aria-disabled="true"]:hover{transform:none;border-color:rgba(255,248,240,.55)}
+.booth-hero .bh-link[aria-disabled="true"] .bh-dot{animation:none}
+.bh-links-note{margin:1.4vh 0 0;font:400 clamp(14px,1.1vw,20px)/1.4 Mitr,Anuphan,sans-serif;color:rgba(255,248,240,.8)}
+
+/* background music button on the curtain */
+.booth-hero .bgm-btn{order:0;margin:0;flex:none}
+.bgm-btn .bgm-on{display:none}
+.bgm-btn[aria-pressed="true"] .bgm-on{display:inline}
+.bgm-btn[aria-pressed="true"] .bgm-off{display:none}
+.bgm-btn:hover svg{transform:none}
+.bgm-btn[aria-pressed="true"]{background:#FFF8F0;color:#A8461B;border-color:#FFF8F0}
+
+/* music on, but the browser is waiting for a tap: a gentle pulse invites it */
+.bgm-wait{animation:bgmPulse 1.4s ease-in-out infinite}
+@keyframes bgmPulse{50%{box-shadow:0 0 0 8px rgba(255,248,240,.35)}}
+@media (prefers-reduced-motion:reduce){.bgm-wait{animation:none}}

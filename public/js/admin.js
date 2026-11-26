@@ -122,6 +122,7 @@ function renderShell() {
 function renderMain() {
   const main = $('#main');
   if (!main || !A.st) return;
+  noteServerTime(A.st.now);
   $('#ev-title').textContent = A.st.event.name;
   document.title = 'แอดมิน · ' + A.st.event.name;
   const y = window.scrollY;
@@ -272,6 +273,18 @@ function entriesCard() {
   </section>`;
 }
 
+/* closing time for an open topic: the server closes it on time and refuses late votes */
+function deadlineRow(t) {
+  const set = t.closesAt && t.closesAt > serverNow();
+  return `<div class="deadline-row">
+    <span class="dl-now">${icon('lock')}${set ? `ปิดอัตโนมัติ ${fmtClock(t.closesAt)} น. · เหลือ <b data-deadline="${t.closesAt}">${fmtLeft(t.closesAt - serverNow())}</b>` : 'ยังไม่ได้ตั้งเวลาปิด'}</span>
+    <span class="dl-set">${[5, 10, 15, 30].map((m) => `<button class="btn btn-sm" data-act="close-in" data-id="${t.id}" data-min="${m}">ปิดใน ${m} นาที</button>`).join('')}
+      <input class="input dl-time" type="time" data-dl="${t.id}" value="${esc(A.dlDraft?.[t.id] || '')}" aria-label="เวลาปิดโหวต ${esc(t.title)}">
+      <button class="btn btn-sm" data-act="close-at" data-id="${t.id}">ตั้งเวลา</button>
+      ${set ? `<button class="btn btn-ghost btn-sm" data-act="close-clear" data-id="${t.id}">ยกเลิกเวลา</button>` : ''}</span>
+  </div>`;
+}
+
 function topicCard(t, i, n) {
   const open = A.openTopics.has(t.id);
   const act1 = t.status === 'open'
@@ -286,6 +299,7 @@ function topicCard(t, i, n) {
         <button class="btn btn-sm" data-act="toggle" data-id="${t.id}" aria-expanded="${open}">${icon(open ? 'chevronUp' : 'chevronDown')}${open ? 'ซ่อนรายละเอียด' : 'ผู้เข้าประกวด'}</button>
       </div>
     </div>
+    ${t.status === 'open' ? deadlineRow(t) : ''}
     ${A.errors['t-' + t.id] ? `<div style="padding:0 var(--sp-4) var(--sp-4)">${errBanner('t-' + t.id)}</div>` : ''}
     ${open ? `<div class="body">
       ${t.contestants.length ? `<ul class="c-list">${t.contestants.map((c) => `<li class="c-row">
@@ -694,6 +708,7 @@ function bind(main) {
   }));
   const target = main.querySelector('#entries-topic');
   if (target) target.addEventListener('change', () => act(target, 'entries', () => api('PUT', '/api/admin/event', { entriesTopicId: target.value || null }), 'บันทึกหัวข้อแล้ว'));
+  main.querySelectorAll('input[data-dl]').forEach((i) => i.addEventListener('input', () => { (A.dlDraft ||= {})[i.dataset.dl] = i.value; }));
   const et = main.querySelector('#entry-topic');
   if (et) et.addEventListener('change', () => { A.entryTopic = et.value; });
   const ta = main.querySelector('#roster');
@@ -757,6 +772,18 @@ async function onAct(e) {
   switch (a) {
     case 'toggle':
       A.openTopics.has(id) ? A.openTopics.delete(id) : A.openTopics.add(id); saveOpen(); renderMain(); break;
+    case 'close-in':
+      act(b, area, () => api('PUT', `/api/admin/topics/${id}`, { closeInMin: Number(b.dataset.min) }), `“${t.title}” จะปิดโหวตใน ${b.dataset.min} นาที`); break;
+    case 'close-at': {
+      const v = A.dlDraft?.[id] || $(`input[data-dl="${id}"]`)?.value;
+      if (!v) { A.errors[area] = 'เลือกเวลาปิดก่อน'; renderMain(); break; }
+      const [hh, mm] = v.split(':').map(Number);
+      const d = new Date(); d.setHours(hh, mm, 0, 0);
+      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1); // a time already passed today means tomorrow
+      act(b, area, async () => { const r = await api('PUT', `/api/admin/topics/${id}`, { closesAt: d.getTime() + serverSkew }); delete A.dlDraft[id]; return r; }, `“${t.title}” จะปิดโหวตเวลา ${v} น.`); break;
+    }
+    case 'close-clear':
+      act(b, area, () => api('PUT', `/api/admin/topics/${id}`, { closesAt: null }), 'ยกเลิกเวลาปิดแล้ว'); break;
     case 'status':
       act(b, area, () => api('PUT', `/api/admin/topics/${id}`, { status: b.dataset.to }), b.dataset.to === 'open' ? `เปิดโหวต “${t.title}” แล้ว` : `ปิดโหวต “${t.title}” แล้ว`); break;
     case 'move':

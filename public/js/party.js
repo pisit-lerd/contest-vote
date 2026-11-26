@@ -40,10 +40,27 @@ function renderHome() {
   const open = topics.filter((t) => t.status === 'open').length;
   const timer = $('#heroTimer');
   timer.classList.toggle('voting', open > 0);
-  if (open) { setText('#heroTimerLabel', 'เปิดโหวตอยู่ ·'); setText('#heroCountdown', `${open} หัวข้อ`); }
-  else if (topics.length && topics.every((t) => t.status === 'closed')) { setText('#heroTimerLabel', 'ปิดโหวตแล้ว'); setText('#heroCountdown', ''); }
-  else { setText('#heroTimerLabel', 'ยังไม่เปิดโหวต'); setText('#heroCountdown', ''); }
+  const cd = $('#heroCountdown');
+  // the soonest closing time among open topics, counted down like the design's pill
+  const next = topics.filter((t) => t.status === 'open' && t.closesAt).sort((a, b) => a.closesAt - b.closesAt)[0];
+  if (next) {
+    setText('#heroTimerLabel', `โหวตได้ถึง ${fmtClock(next.closesAt)} น. · อีก`);
+    cd.dataset.deadline = next.closesAt; cd.dataset.done = 'หมดเวลา'; cd.textContent = fmtLeft(next.closesAt - serverNow());
+  } else {
+    delete cd.dataset.deadline;
+    if (open) { setText('#heroTimerLabel', 'เปิดโหวตอยู่ ·'); setText('#heroCountdown', `${open} หัวข้อ`); }
+    else if (topics.length && topics.every((t) => t.status === 'closed')) { setText('#heroTimerLabel', 'ปิดโหวตแล้ว'); setText('#heroCountdown', ''); }
+    else { setText('#heroTimerLabel', 'ยังไม่เปิดโหวต'); setText('#heroCountdown', ''); }
+  }
   $('#heroCountdown').hidden = !$('#heroCountdown').textContent;
+  // Live Score and voting open once the admin opens a topic (they stay open afterwards for the results),
+  // and during the contestant intro, when guests join to send cheers
+  const unlocked = topics.length > 0 || !!P.pub.cheer?.open;
+  for (const a of document.querySelectorAll('#voteLink, .live-cta')) {
+    a.setAttribute('aria-disabled', String(!unlocked));
+    if (unlocked) a.removeAttribute('tabindex'); else a.setAttribute('tabindex', '-1');
+  }
+  $('#linksNote').hidden = unlocked;
 }
 
 /* ---------- studio: stage previews ---------- */
@@ -107,6 +124,7 @@ function goScreen(name, push = true) {
   }
   renderScreen(); window.scrollTo(0, 0); setTimeout(refitStage, 60);
 }
+
 window.addEventListener('popstate', () => {
   if (SH.active) cancelShoot();
   const h = location.hash.slice(1);
@@ -136,6 +154,7 @@ function contestBlock() {
   return null;
 }
 const ENTRY_STATUS = { pending: 'รอแอดมินตรวจ', approved: 'ขึ้นให้โหวตแล้ว', rejected: 'ไม่ผ่านการตรวจ' };
+const entryStatus = (e) => (e.status === 'approved' && !e.live ? 'เข้าประกวดแล้ว · รอเปิดโหวต' : ENTRY_STATUS[e.status] || e.status);
 function renderContestSetup() {
   const block = contestBlock(), msg = $('#contestMsg');
   $('#contestForm').hidden = !!block;
@@ -151,7 +170,7 @@ function renderContestSetup() {
   if (mine.length) {
     const d = document.createElement('div'); d.className = 'note';
     const st = document.createElement('strong'); st.textContent = 'รูปที่คุณส่งแล้ว'; d.append(st);
-    for (const e of mine) { const r = document.createElement('div'); r.textContent = `${e.name} · ${e.concept} — ${ENTRY_STATUS[e.status] || e.status}`; d.append(r); }
+    for (const e of mine) { const r = document.createElement('div'); r.textContent = `${e.name} · ${e.concept} — ${entryStatus(e)}`; d.append(r); }
     parts.push(d);
   }
   msg.append(...parts); msg.hidden = !parts.length;
@@ -162,7 +181,8 @@ function renderContestForm() {
   const fr = $('#formRetake');
   fr.querySelector('b').textContent = P.contestFrom === 'gallery' ? 'เลือกรูปอื่น' : 'ถ่ายใหม่';
   fr.querySelector('small').textContent = P.contestFrom === 'gallery' ? 'เปิดคลังภาพอีกครั้ง' : 'นับถอยหลัง 5 วินาที แล้วถ่ายอีกครั้ง';
-  $('#formNote').textContent = autoEntries() ? 'กดส่งแล้วรูปจะขึ้นหน้าโหวตและ Live Score ทันที' : 'รูปจะไปรอให้แอดมินตรวจก่อน ผ่านแล้วจึงขึ้นให้โหวต';
+  $('#formNote').textContent = !autoEntries() ? 'รูปจะไปรอให้แอดมินตรวจก่อน ผ่านแล้วจึงขึ้นให้โหวต'
+    : liveEntries() ? 'กดส่งแล้วรูปจะขึ้นหน้าโหวตและ Live Score ทันที' : 'กดส่งแล้วรูปจะเก็บไว้ในหัวข้อประกวด และขึ้น Live Score เมื่อเปิดโหวต';
   for (const [id, k] of [['#fName', 'cName'], ['#fDept', 'cDept'], ['#fConcept', 'cConcept']]) { const el = $(id); if (el.value !== P[k]) el.value = P[k]; }
   $('#submitContest').disabled = !(P.cName.trim() && P.cDept.trim() && P.cConcept.trim()) || P.submitting;
   drawAll();
@@ -333,7 +353,8 @@ async function finishShoot() {
 /* ---------- result: step flow on top, then the next actions ---------- */
 // last step follows the admin's choice: entries join the contest at once, or wait for approval
 const autoEntries = () => !!P.pub?.entries.auto;
-const flowContest = () => [P.contestFrom === 'gallery' ? 'เลือกรูป' : 'ถ่ายรูป', 'ตรวจรูป', 'กรอกข้อมูล', autoEntries() ? 'ขึ้น Live Score' : 'รอแอดมินตรวจ'];
+const liveEntries = () => autoEntries() && !!P.pub?.entries.live; // the topic is open: a new entry shows at once
+const flowContest = () => [P.contestFrom === 'gallery' ? 'เลือกรูป' : 'ถ่ายรูป', 'ตรวจรูป', 'กรอกข้อมูล', !autoEntries() ? 'รอแอดมินตรวจ' : liveEntries() ? 'ขึ้น Live Score' : 'รอเปิดโหวต'];
 const flowBooth = () => ['เลือกกรอบ', 'ถ่ายรูป', P.pub?.booth.drive ? 'บันทึกไป Google Drive' : 'บันทึกรูป'];
 function renderFlow(el, steps, cur) {
   el.innerHTML = steps.map((s, i) => `<li class="${i < cur ? 'done' : i === cur ? 'cur' : ''}"><span class="fn">${i < cur ? '✓' : i + 1}</span><span class="ft"></span></li>`).join('');
@@ -432,7 +453,8 @@ function reviewContest(shot, from) {
   const c = F.compose(0.6, F.CONTEST_FRAME, [P.contestShot], '', 1, 'strip');
   showResult({
     src: c.toDataURL('image/jpeg', 0.88), kicker: 'ส่งประกวดชุด', title: 'ชอบรูปนี้ไหม?',
-    text: autoEntries() ? 'ถ้าชอบ กดใช้รูปนี้แล้วกรอกข้อมูล รูปจะขึ้น Live Score ทันที' : 'ถ้าชอบ กดใช้รูปนี้แล้วกรอกข้อมูล รูปจะไปรอแอดมินตรวจก่อนขึ้นให้โหวต',
+    text: !autoEntries() ? 'ถ้าชอบ กดใช้รูปนี้แล้วกรอกข้อมูล รูปจะไปรอแอดมินตรวจก่อนขึ้นให้โหวต'
+      : liveEntries() ? 'ถ้าชอบ กดใช้รูปนี้แล้วกรอกข้อมูล รูปจะขึ้น Live Score ทันที' : 'ถ้าชอบ กดใช้รูปนี้แล้วกรอกข้อมูล รูปจะเก็บไว้รอเปิดโหวต',
     flow: flowContest(), step: 1,
     actions: [
       { label: 'ใช้รูปนี้', sub: 'ถัดไป: กรอกชื่อ แผนก และ Concept', icon: 'save', kind: 'main', fn: () => goScreen('cform') },
@@ -451,13 +473,15 @@ async function submitContest() {
   const photo = F.smallDataURL(F.compose(720 / 1080, F.CONTEST_FRAME, [shot], contestCaption(), 1, 'strip'));
   try {
     const r = await api('POST', '/api/entries', { name, dept, concept, photo }, authHeaders());
-    const live = r.entry && r.entry.status === 'approved';
+    const added = r.entry && r.entry.status === 'approved', live = added && r.entry.live;
     const doneSrc = F.compose(0.6, F.CONTEST_FRAME, [shot], contestCaption(), 1, 'strip').toDataURL('image/jpeg', 0.88);
     P.contestShot = null; P.cName = P.cDept = P.cConcept = '';
     loadMe();
     showResult({
       src: doneSrc, kicker: 'ส่งประกวดชุด', title: 'ส่งประกวดเรียบร้อย!',
-      text: live ? `รูปของ ${name} ขึ้น Live Score แล้ว ขอให้โชคดี 🍀` : `รูปของ ${name} ไปรอแอดมินตรวจแล้ว ผ่านแล้วจะขึ้นให้โหวต ขอให้โชคดี 🍀`,
+      text: live ? `รูปของ ${name} ขึ้น Live Score แล้ว ขอให้โชคดี 🍀`
+        : added ? `รูปของ ${name} เข้าประกวดแล้ว จะขึ้น Live Score เมื่อเปิดโหวต ขอให้โชคดี 🍀`
+          : `รูปของ ${name} ไปรอแอดมินตรวจแล้ว ผ่านแล้วจะขึ้นให้โหวต ขอให้โชคดี 🍀`,
       flow: flowContest(), step: 4,
       actions: [{ label: 'กลับหน้าแรก', sub: 'ถ่ายรูปต่อหรือไปโหวต', icon: 'home', kind: 'main', fn: goHome }],
     });
@@ -487,6 +511,10 @@ function bindCamButtons() {
 /* ---------- events + start ---------- */
 function bind() {
   bindCamButtons();
+  Bgm.enable($('#bgmBtn')); // background music, shared with the voting pages
+  for (const a of document.querySelectorAll('#voteLink, .live-cta')) {
+    a.addEventListener('click', (e) => { if (a.getAttribute('aria-disabled') === 'true') { e.preventDefault(); say('ยังไม่เปิดโหวต รอผู้จัดเปิดโหวตก่อนนะ'); } });
+  }
   for (const b of document.querySelectorAll('[data-go]')) b.addEventListener('click', () => goScreen(b.dataset.go));
   $('#frames').addEventListener('click', (e) => { const b = e.target.closest('.fr'); if (b) { P.frame = b.dataset.frame; drawAll(); } });
   $('#countRow').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { P.n = +b.dataset.n; renderBoothSetup(); } });
@@ -513,6 +541,7 @@ async function boot() {
   goScreen(['booth', 'contest'].includes(h) ? h : 'home', false);
   await loadMe();
   liveStream('/api/stream', async (data) => {
+    noteServerTime(data.now);
     P.pub = data; F.setTitle(data.event.name);
     // "no entry details" mode: join quietly, like the voting page does
     if (!P.token && data.event.accessMode === 'open' && !P.joining) {
