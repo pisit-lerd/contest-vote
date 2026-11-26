@@ -1436,3 +1436,9 @@ body.host-open .booth-hero .gear-btn{background:#FFF8F0;color:#A8461B;border-col
 .welcome-in:focus-visible .w-title{outline:3px solid #FFF8F0;outline-offset:6px}
 @keyframes wPulse{50%{transform:scale(1.05);box-shadow:0 0 0 12px rgba(255,248,240,.22),0 16px 34px -14px rgba(60,15,0,.8)}}
 @media (prefers-reduced-motion:reduce){.w-title{animation:none}.welcome{transition:none}}
+/* narrow phones: the hero's deadline pill stays on one line next to the speaker button */
+@media (max-width:480px){
+  .booth-hero .hs-timer{gap:8px;padding:8px 14px;min-width:0;max-width:100%}
+  .booth-hero .hs-timer .hs-k{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .booth-hero .hs-timer .hs-v{font-size:22px;flex:none}
+}
