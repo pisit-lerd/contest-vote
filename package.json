@@ -2,7 +2,8 @@
   "name": "contest-vote",
   "version": "1.1.2",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "description": "Contest voting web app for company parties: vote codes, live big screen and email delivery",
   "dependencies": {

@@ -508,10 +508,31 @@ function bindCamButtons() {
   }
 }
 
+/* ---------- "แตะเพื่อเข้างาน": once per visit, only while the browser is holding sound back ----------
+ * Phones play nothing until the guest taps the page. This full-screen card turns that first tap into the one
+ * that starts the music and readies the countdown sounds (the tap itself reaches common.js's listeners). */
+function showWelcome() {
+  let seen = false;
+  try { seen = sessionStorage.getItem('cv_welcome') === '1'; } catch { /* storage blocked */ }
+  if (seen || (navigator.userActivation && navigator.userActivation.hasBeenActive)) return;
+  const w = $('#welcome');
+  // give the browser a moment to say whether it allows sound; a computer that does skips the card
+  setTimeout(() => {
+    if (soundReady() && !Bgm.isBlocked()) return;
+    w.hidden = false; $('#welcomeGo').focus();
+    $('#welcomeGo').addEventListener('click', () => {
+      try { sessionStorage.setItem('cv_welcome', '1'); } catch { /* storage blocked */ }
+      w.classList.add('out');
+      setTimeout(() => { w.hidden = true; }, 500);
+    }, { once: true });
+  }, 600);
+}
+
 /* ---------- events + start ---------- */
 function bind() {
   bindCamButtons();
   Bgm.enable($('#bgmBtn')); // background music, shared with the voting pages
+  showWelcome();
   for (const a of document.querySelectorAll('#voteLink, .live-cta')) {
     a.addEventListener('click', (e) => { if (a.getAttribute('aria-disabled') === 'true') { e.preventDefault(); say('ยังไม่เปิดโหวต รอผู้จัดเปิดโหวตก่อนนะ'); } });
   }
