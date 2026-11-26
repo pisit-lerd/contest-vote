@@ -139,7 +139,7 @@ function renderScreen() {
 function renderBoothSetup() {
   for (const b of document.querySelectorAll('#countRow button')) b.setAttribute('aria-checked', String(+b.dataset.n === P.n));
   for (const b of document.querySelectorAll('#shapeRow button')) b.setAttribute('aria-checked', String(b.dataset.shape === P.shape));
-  const save = P.pub?.booth.drive ? 'แล้วบันทึกไป Google Drive ให้อัตโนมัติ' : 'แล้วกดบันทึกลงเครื่องได้';
+  const save = P.pub?.booth.drive ? 'ชอบแล้วค่อยกด “บันทึกรูป” เก็บลงเครื่องและส่งเข้า Google Drive ของงาน' : 'แล้วกดบันทึกลงเครื่องได้';
   $('#boothHow').textContent = liveCamera()
     ? `กด “เริ่มถ่าย” แล้วกล้องจะเปิดเต็มจอ นับ 3-2-1 และถ่ายเองทีละรูปจนครบ ${P.n} รูป ${save}`
     : `กด “เริ่มถ่าย” แล้วแตะเปิดกล้องของเครื่องทีละรูปจนครบ ${P.n} รูป ${save}`;
@@ -403,7 +403,9 @@ function prepareSheet(c) {
   sheetFile = null;
   return canvasBlob(c, 0.92).then((b) => (sheetFile = b ? new File([b], sheetName(), { type: 'image/jpeg' }) : null));
 }
+let tipShown = false; // the long-press tip stays on screen; Drive news then goes to a toast
 function longPressTip() {
+  tipShown = true;
   const t = IOS ? 'กดค้างที่รูปด้านบน แล้วเลือก “บันทึกรูปภาพ” หรือ “เพิ่มไปยังรูปภาพ”'
     : 'กดค้างที่รูปด้านบน แล้วเลือก “ดาวน์โหลดรูปภาพ” หรือ “บันทึกรูปภาพ”';
   setResultText(t); say(t);
@@ -431,28 +433,39 @@ function jpegUnder(c, max) { // data URL small enough for the server's 3 MB limi
 }
 async function sendToDrive(c) {
   const flow = flowBooth();
-  setResultText('กำลังบันทึกไป Google Drive…');
+  const tell = (t) => { if (tipShown || P.screen !== 'result') say(t); else setResultText(t); };
+  tell('กำลังบันทึกไป Google Drive…');
   try {
     await api('POST', '/api/booth', { photo: jpegUnder(c, 2.8 * 1024 * 1024) }, authHeaders());
-    setResultText('บันทึกไป Google Drive แล้ว อยากเก็บไว้ในมือถือด้วย กด “บันทึกลงเครื่อง”');
-    if (P.screen === 'result') renderFlow($('#resultFlow'), flow, flow.length); else say('บันทึกรูปไป Google Drive แล้ว');
+    tell('บันทึกรูปไป Google Drive ของงานแล้ว');
+    if (P.screen === 'result') renderFlow($('#resultFlow'), flow, flow.length);
+    return true;
   } catch (e) {
-    setResultText(e.message || 'บันทึกไป Google Drive ไม่สำเร็จ');
-    if (P.screen !== 'result') say('บันทึกรูปไป Google Drive ไม่สำเร็จ');
+    tell(e.message || 'บันทึกไป Google Drive ไม่สำเร็จ กด “บันทึกรูป” อีกครั้ง');
+    return false;
   }
 }
 function saveBoothResult() {
   const c = F.compose(1, SH.frame, SH.shots, '', SH.n, SH.shape);
   const drive = !!P.pub?.booth.drive;
   const ready = prepareSheet(c);
+  tipShown = false;
+  // Drive gets the sheet only when the guest presses save (someone unhappy with it just retakes);
+  // once per sheet, and again on the next press if the upload failed
+  let drv = null; // null: not sent · a promise: sending or sent
+  const save = () => {
+    keepOnPhone(ready); // first, while the tap still counts (iPhone share sheet)
+    if (drive && !drv) drv = sendToDrive(c).then((ok) => { if (!ok) drv = null; return ok; });
+  };
   const actions = [
-    { label: 'บันทึกลงเครื่อง', sub: 'เก็บรูปไว้ในมือถือของคุณ', icon: 'save', kind: 'main', fn: () => keepOnPhone(ready) },
+    drive ? { label: 'บันทึกรูป', sub: 'เก็บลงเครื่อง และส่งเข้า Google Drive ของงาน', icon: 'save', kind: 'main', fn: save }
+      : { label: 'บันทึกลงเครื่อง', sub: 'เก็บรูปไว้ในมือถือของคุณ', icon: 'save', kind: 'main', fn: save },
     { label: 'ถ่ายอีกแผ่น', sub: 'กรอบและจำนวนรูปเดิม', icon: 'retake', fn: () => { goScreen('booth'); startShoot(); } },
     { label: 'กลับหน้าแรก', sub: 'ถ่ายรูปต่อหรือส่งประกวด', icon: 'home', kind: 'ghost', fn: goHome },
   ];
-  const text = 'กด “บันทึกลงเครื่อง” เพื่อเก็บรูปไว้ในมือถือ';
+  const text = drive ? 'ชอบรูปนี้ กด “บันทึกรูป” รูปจะเก็บลงเครื่องและเข้า Google Drive ของงาน ไม่ชอบก็ถ่ายใหม่ได้ ไม่มีอะไรถูกส่งไป'
+    : 'กด “บันทึกลงเครื่อง” เพื่อเก็บรูปไว้ในมือถือ';
   showResult({ src: c.toDataURL('image/jpeg', 0.9), kicker: 'ถ่ายรูปสนุกๆ', title: 'ได้รูปแล้ว!', text, flow: flowBooth(), step: 2, actions });
-  if (drive) sendToDrive(c); // every sheet goes to the event's Drive folder, joined or not
 }
 
 /* costume entry: review → fill in → sent to the admin's waiting list */
@@ -538,7 +551,7 @@ function bindCamButtons() {
 function showWelcome() {
   let seen = false;
   try { seen = sessionStorage.getItem('cv_welcome') === '1'; } catch { /* storage blocked */ }
-  if (seen || (navigator.userActivation && navigator.userActivation.hasBeenActive)) return;
+  if (seen || Bgm.silent() || (navigator.userActivation && navigator.userActivation.hasBeenActive)) return; // sound off: nothing to unlock
   const w = $('#welcome');
   // give the browser a moment to say whether it allows sound; a computer that does skips the card
   setTimeout(() => {

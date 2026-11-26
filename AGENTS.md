@@ -82,8 +82,8 @@ Each line below fixes a real problem found by a security check. Keep it working,
 - **Names given by the admin are fixed.** The server never accepts a name from a phone; a self-set name stays in that
   phone's storage.
 - **Booth pictures and entries go through the server.** `/api/entries` needs a joined guest and gets the big body
-  limit only after the session checks out. `/api/booth` is open to every visitor (the organisers want every sheet in
-  Drive), so before reading the body it needs Drive on, refuses cross-site requests and checks the room-wide limit;
+  limit only after the session checks out. `/api/booth` is open to every visitor (the organisers want every saved sheet
+  in Drive; the page sends a sheet only when the guest presses "บันทึกรูป"), so before reading the body it needs Drive on, refuses cross-site requests and checks the room-wide limit;
   JPEG only, checked by content. Drive uploads use a service account (`GDRIVE_KEY_FILE`, `GDRIVE_FOLDER_ID`) signed with
   node's `crypto` (no Google library); the key and folder are never sent to a page, and the key file stays out of git
   and the image (`.gitignore`, `.dockerignore`). Guest entries

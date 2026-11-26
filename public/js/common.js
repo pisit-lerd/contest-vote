@@ -342,7 +342,7 @@ function oncePerDevice(key, play) {
 }
 // two topics ending (or reaching their last minute) together give one set of sounds, not a pile-up
 let lastMinuteAt = 0, lastTimeUpAt = 0;
-const finalMinute = () => { if (Date.now() - lastMinuteAt < 4000) return; lastMinuteAt = Date.now(); Bgm.duck(3000); oncePerDevice('minute', () => playClip('minute')); };
+const finalMinute = () => { if (Bgm.silent() || Date.now() - lastMinuteAt < 4000) return; lastMinuteAt = Date.now(); Bgm.duck(3000); oncePerDevice('minute', () => playClip('minute')); };
 function unlockAudio() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -381,7 +381,10 @@ function buzzer() {
 let timeUpStyle = false;
 function timeUp(deadline) {
   const again = Date.now() - lastTimeUpAt < 12000; // another topic ending with this one: just shake its countdown
-  if (!again) {
+  if (!again && Bgm.silent()) { // guest page with the speaker off: no buzzer, just the stamp and a buzz
+    lastTimeUpAt = Date.now();
+    try { if (navigator.vibrate) navigator.vibrate([180, 90, 420]); } catch { /* not on this device */ }
+  } else if (!again) {
     lastTimeUpAt = Date.now();
     Bgm.duck(13000); // buzzer, then the time's-up clip
     oncePerDevice('end', () => {
@@ -415,19 +418,21 @@ box-shadow:0 .2em .5em rgba(40,10,0,.55),inset 0 0 0 .06em rgba(255,248,240,.7);
 
 /* ---------- background music that follows the guest across pages ----------
  * Pages that want it call Bgm.enable(button): the landing page (all its screens), /vote and /claim.
- * On by default. Browsers hold sound back until the first tap on each page, so it starts (from the same spot as on
+ * Off by default (guests were startled by a page that suddenly played); the speaker button turns the music and
+ * the countdown sounds on, remembered on that phone. Pages without the button (the big screen) always sound.
+ * Browsers hold sound back until the first tap on each page, so it starts (from the same spot as on
  * the last page) as soon as the browser allows: at once where it can, otherwise at the first tap anywhere.
  * The music dips while the one-minute and time's-up sounds play. */
 const Bgm = (() => {
   const SRC = '/sounds/home-loop.mp3', VOL = 0.55;
-  // on by default; the speaker button's choice is remembered on this phone
-  let el = null, enabled = false, btn = null, off = false, blocked = false, duckT = null, ducked = false;
-  try { off = localStorage.getItem('cv_bgm_off') === '1'; } catch { /* storage blocked */ }
+  // off until the guest turns it on with the speaker button; the choice is remembered on this phone
+  let el = null, enabled = false, btn = null, off = true, blocked = false, duckT = null, ducked = false;
+  try { off = localStorage.getItem('cv_bgm_off') !== '0'; } catch { /* storage blocked */ }
   const save = () => { try { if (el && !el.paused) sessionStorage.setItem('cv_bgm_t', String(el.currentTime)); } catch { /* storage blocked */ } };
   function paint() {
     if (!btn) return;
     btn.setAttribute('aria-pressed', String(!off));
-    btn.setAttribute('aria-label', off ? 'เปิดเพลง' : blocked ? 'แตะเพื่อเปิดเสียงเพลง' : 'ปิดเพลง');
+    btn.setAttribute('aria-label', off ? 'เปิดเสียง' : blocked ? 'แตะเพื่อเปิดเสียงเพลง' : 'ปิดเสียง');
     btn.classList.toggle('bgm-wait', !off && blocked); // the browser is holding the sound until a tap
   }
   function sync() {
@@ -466,6 +471,8 @@ const Bgm = (() => {
       });
       sync(); // plays at once where the browser allows it; otherwise at the first tap
     },
+    /** a guest page whose speaker is off: the countdown sounds stay quiet too */
+    silent: () => enabled && off,
     /** the browser is holding the music back until a tap */
     isBlocked: () => blocked,
     /** lower the music for a moment so a warning sound is heard */

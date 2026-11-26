@@ -196,16 +196,19 @@ server's time sent with each update. Closing a topic by hand, or reopening it, d
 
 With one minute left, those pages play a short clip, `public/sounds/iron-chep.mp3` (replace the file to change it).
 When the time runs out, every page that was counting down shows a shaking "⏰ หมดเวลา!" stamp, plays a buzzer
-followed by `public/sounds/time-up.mp3`, and phones vibrate. Guest pages (the landing page with its photo screens,
-`/vote` and `/claim`) loop `public/sounds/home-loop.mp3`, on by default, and carry it on from the same spot when the
-guest moves between them. Browsers hold sound back until someone taps the page, so it starts at once where the
-browser allows it and otherwise at the first tap anywhere (the speaker button pulses meanwhile). On a phone that holds sound
-back, the landing page first shows a full-screen "แตะเพื่อเข้างาน 🎉" card (once per visit): that tap starts the music
-and readies the countdown sounds. The speaker button on the landing page
-and on `/vote` turns it off, remembered on that phone; it dips under the warning sounds. The big screen and admin
-play no music. Browsers only play sound after someone has tapped or pressed a key on that page, so on the projector
-press "เต็มจอ" or F once before voting starts; a phone that has been tapped (to vote) plays it too, unless it is on
-silent. A page opened after the deadline passed does not sound.
+followed by `public/sounds/time-up.mp3`, and phones vibrate.
+
+**Guest pages are silent by default** (the landing page with its photo screens, `/vote` and `/claim`): guests were
+startled by a page that suddenly played. The speaker button on the landing page and on `/vote` turns sound on,
+remembered on that phone: it loops `public/sounds/home-loop.mp3`, carried on from the same spot when the guest moves
+between pages, and plays the one-minute and time's-up sounds (the music dips under them). With the speaker off, a
+phone still shows the "⏰ หมดเวลา!" stamp and vibrates. On a phone that holds sound back with the speaker on, the
+landing page first shows a full-screen "แตะเพื่อเข้างาน 🎉" card (once per visit): that tap starts the music and readies
+the countdown sounds.
+
+The big screen always plays the countdown sounds and never music; the admin page plays nothing. Browsers only play
+sound after someone has tapped or pressed a key on that page, so on the projector press "เต็มจอ" or F once before
+voting starts. A page opened after the deadline passed does not sound.
 
 ### Sounds
 
@@ -224,12 +227,15 @@ so anyone can download them. Without a file the pages stay silent where it would
 ## Photo booth and costume entries
 
 **Photo booth ("ถ่ายรูปสนุกๆ").** Guests pick one of 8 frames, a tall strip or a wide sheet, and 1–4 pictures. The
-page counts 3-2-1 and takes each picture, then shows the finished sheet with "บันทึกลงเครื่อง" (save to this phone).
+page counts 3-2-1 and takes each picture, then shows the finished sheet with "บันทึกลงเครื่อง" (save to this phone),
+or "บันทึกรูป" (save) when Drive is set up.
 
 - A camera inside the page needs https (or `localhost`). Over plain `http://<ip>:3000` phones do not allow it, so the
   page opens the phone's own camera app once for each picture instead. Everything else works the same.
-- With Google Drive set up (below), every finished sheet is saved to the Drive folder automatically, whether the
-  guest has joined or not. The phone sends it to this server, which checks it is a real JPEG under 3 MB, refuses
+- With Google Drive set up (below), a sheet goes to the Drive folder only when the guest presses "บันทึกรูป", which
+  also saves it to the phone, whether the guest has joined or not. A guest unhappy with a sheet just retakes it and
+  nothing is sent. Each sheet is sent once (pressing again only saves to the phone again, unless the upload failed).
+  The phone sends it to this server, which checks it is a real JPEG under 3 MB, refuses
   requests from other websites, keeps the whole room under 30 sheets a minute (joined guests also have their own
   limit), and uploads it. Pages never see the key or the folder. Without Drive, pictures stay on the phones only.
 - Because no sign-in is needed, anyone who can open the page can send pictures into the folder, up to the room's
