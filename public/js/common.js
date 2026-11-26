@@ -222,3 +222,173 @@ function photoHtml(c, size, cls = '') {
     ? `<img src="${esc(c.photo)}" alt="" class="${cls}" style="${style}" loading="lazy">`
     : `<div class="photo-ph ${cls}" style="${style};font-size:${Math.round(size / 3)}px" aria-hidden="true">${esc(c.number)}</div>`;
 }
+
+/* ---------- countdowns to a topic's closing time ----------
+ * Any element with data-deadline="<ms>" shows the time left and is refreshed every second.
+ * Snapshots carry the server's clock (now), so a phone whose clock is off still counts right. */
+let serverSkew = 0;
+function noteServerTime(now) { if (Number.isFinite(now)) serverSkew = now - Date.now(); }
+const serverNow = () => Date.now() + serverSkew;
+function fmtLeft(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  const p = (n) => String(n).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(x)}` : `${p(m)}:${p(x)}`;
+}
+function fmtClock(ms) {
+  const d = new Date(ms - serverSkew); // shown in this device's time zone
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+// "time's up" fires once per deadline, and only for one this page watched counting down (not on a page
+// opened after it passed). The deadline is remembered even if the server closes the topic and the countdown
+// disappears from the page a moment before the tick reaches zero.
+const armedDeadlines = new Set(); const firedDeadlines = new Set();
+// the same for the one-minute warning: armed while more than a minute is left, fired once at 60 seconds
+const armedMinute = new Set(); const firedMinute = new Set();
+function tickCountdowns() {
+  for (const el of document.querySelectorAll('[data-deadline]')) {
+    const d = Number(el.dataset.deadline), left = d - serverNow();
+    if (left > 1000) armedDeadlines.add(d);
+    if (left > 61000) armedMinute.add(d);
+    const text = left > 0 ? fmtLeft(left) : (el.dataset.done || 'หมดเวลา');
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle('urgent', left > 0 && left <= 60000);
+  }
+  for (const d of armedMinute) {
+    const left = d - serverNow();
+    if (left > 60000 || firedMinute.has(d)) continue;
+    firedMinute.add(d); armedMinute.delete(d);
+    if (left > 0) finalMinute();
+  }
+  for (const d of armedDeadlines) {
+    if (serverNow() < d || firedDeadlines.has(d)) continue;
+    firedDeadlines.add(d); armedDeadlines.delete(d);
+    timeUp(d);
+  }
+}
+setInterval(tickCountdowns, 1000);
+
+/* ---------- time's up: a shaking "หมดเวลา!" stamp, a buzzer, and a buzz on phones ---------- */
+let audioCtx = null;
+// browsers only allow sound after the person has tapped or pressed a key on the page (the big screen: "เต็มจอ" or F)
+// short clips in public/sounds/, loaded once and reused: one minute left, and after the time's-up buzzer
+const CLIPS = { minute: '/sounds/iron-chep.mp3', timeUp: '/sounds/time-up.mp3' };
+const clipEls = {};
+const clip = (k) => { if (!clipEls[k]) { clipEls[k] = new Audio(CLIPS[k]); clipEls[k].preload = 'auto'; } return clipEls[k]; };
+function playClip(k) {
+  const a = clip(k);
+  try { a.muted = false; a.currentTime = 0; a.play().catch(() => {}); } catch { /* sound not allowed yet */ }
+}
+const finalMinute = () => { Bgm.duck(3000); playClip('minute'); };
+let clipsPrimed = false;
+function unlockAudio() {
+  // iPhone: an audio element plays later only if it was started once during a tap, so start each silently now
+  if (!clipsPrimed) {
+    clipsPrimed = true;
+    for (const k of Object.keys(CLIPS)) {
+      const a = clip(k);
+      try { a.muted = true; a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }, () => { a.muted = false; clipsPrimed = false; }); } catch { clipsPrimed = false; }
+    }
+  }
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch { audioCtx = null; }
+}
+for (const ev of ['pointerdown', 'keydown', 'touchstart']) document.addEventListener(ev, unlockAudio, { passive: true });
+function buzzer() {
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  const t0 = audioCtx.currentTime;
+  const out = audioCtx.createGain(); out.gain.value = .32; out.connect(audioCtx.destination);
+  // three short beeps, then a long falling horn
+  const note = (at, len, f1, f2, type) => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f1, at); o.frequency.exponentialRampToValueAtTime(f2, at + len);
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(1, at + .02); g.gain.setValueAtTime(1, at + len - .06); g.gain.linearRampToValueAtTime(0, at + len);
+    o.connect(g); g.connect(out); o.start(at); o.stop(at + len + .02);
+  };
+  note(t0, .16, 880, 880, 'square'); note(t0 + .26, .16, 880, 880, 'square'); note(t0 + .52, .16, 880, 880, 'square');
+  note(t0 + .82, .9, 620, 330, 'sawtooth');
+}
+let timeUpStyle = false;
+function timeUp(deadline) {
+  Bgm.duck(13000); // buzzer, then the time's-up clip
+  buzzer();
+  setTimeout(() => playClip('timeUp'), 1800); // right after the buzzer's long horn
+  try { if (navigator.vibrate) navigator.vibrate([180, 90, 180, 90, 420]); } catch { /* not on this device */ }
+  if (!timeUpStyle) { // one place for every page (index.html does not load base.css)
+    timeUpStyle = true;
+    const st = document.createElement('style');
+    st.textContent = `.tu-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;pointer-events:none;background:rgba(42,20,10,.32);animation:tuFade 3.4s ease forwards}
+.tu-card{font-family:Mitr,Anuphan,sans-serif;font-weight:600;font-size:clamp(44px,9vw,170px);line-height:1.2;color:#fff8f0;padding:.18em .7em;border-radius:999px;
+background:linear-gradient(180deg,rgba(0,0,0,.2),rgba(0,0,0,0) 45%,rgba(0,0,0,.25)),repeating-linear-gradient(90deg,#9e3f16 0,#be5726 .4em,#dc7640 .8em,#e8874d .95em,#cc6532 1.25em,#ad4c1d 1.6em,#9e3f16 1.8em);
+box-shadow:0 .2em .5em rgba(40,10,0,.55),inset 0 0 0 .06em rgba(255,248,240,.7);animation:tuIn .35s cubic-bezier(.3,1.6,.5,1) both,tuShake .5s .35s ease-in-out 4}
+.tu-shake{display:inline-block;animation:tuShake .5s ease-in-out 4}
+@keyframes tuIn{from{transform:scale(.3);opacity:0}}
+@keyframes tuShake{0%,100%{transform:translateX(0) rotate(0)}15%{transform:translateX(-.08em) rotate(-4deg)}30%{transform:translateX(.08em) rotate(4deg)}45%{transform:translateX(-.06em) rotate(-3deg)}60%{transform:translateX(.06em) rotate(3deg)}75%{transform:translateX(-.03em) rotate(-1deg)}}
+@keyframes tuFade{0%,82%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.tu-card,.tu-shake{animation:none}}`;
+    document.head.append(st);
+  }
+  for (const el of document.querySelectorAll(`[data-deadline="${deadline}"]`)) { el.classList.remove('tu-shake'); void el.offsetWidth; el.classList.add('tu-shake'); }
+  const ov = document.createElement('div');
+  ov.className = 'tu-overlay'; ov.setAttribute('role', 'alert');
+  const card = document.createElement('div'); card.className = 'tu-card'; card.textContent = '⏰ หมดเวลา!';
+  ov.append(card); document.body.append(ov);
+  setTimeout(() => ov.remove(), 3500);
+}
+
+/* ---------- background music that follows the guest across pages ----------
+ * Pages that want it call Bgm.enable(button): the landing page (all its screens), /vote and /claim.
+ * On by default. Browsers hold sound back until the first tap on each page, so it starts (from the same spot as on
+ * the last page) as soon as the browser allows: at once where it can, otherwise at the first tap anywhere.
+ * The music dips while the one-minute and time's-up sounds play. */
+const Bgm = (() => {
+  const SRC = '/sounds/home-loop.mp3', VOL = 0.55;
+  // on by default; the speaker button's choice is remembered on this phone
+  let el = null, enabled = false, btn = null, off = false, blocked = false, duckT = null;
+  try { off = localStorage.getItem('cv_bgm_off') === '1'; } catch { /* storage blocked */ }
+  const save = () => { try { if (el && !el.paused) sessionStorage.setItem('cv_bgm_t', String(el.currentTime)); } catch { /* storage blocked */ } };
+  function paint() {
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', String(!off));
+    btn.setAttribute('aria-label', off ? 'เปิดเพลง' : blocked ? 'แตะเพื่อเปิดเสียงเพลง' : 'ปิดเพลง');
+    btn.classList.toggle('bgm-wait', !off && blocked); // the browser is holding the sound until a tap
+  }
+  function sync() {
+    if (!enabled) return;
+    if (!off && !document.hidden) {
+      el.play().then(() => { blocked = false; paint(); }, () => { blocked = true; paint(); });
+    } else { save(); el.pause(); }
+    paint();
+  }
+  // browsers hold back sound until the first tap or key press on the page: try again then
+  const onTap = (e) => { if (btn && e.target && e.target.closest && e.target.closest('#' + btn.id)) return; if (!off && el.paused) sync(); };
+  return {
+    enable(button) {
+      if (enabled) return;
+      enabled = true; btn = button || null;
+      el = new Audio(SRC); el.loop = true; el.volume = VOL; el.preload = 'auto';
+      let t = 0; try { t = Number(sessionStorage.getItem('cv_bgm_t')) || 0; } catch { /* storage blocked */ }
+      if (t) el.addEventListener('loadedmetadata', () => { try { el.currentTime = t % (el.duration || Infinity); } catch { /* not seekable yet */ } }, { once: true });
+      for (const ev of ['click', 'touchend', 'keydown']) document.addEventListener(ev, onTap, { passive: true });
+      document.addEventListener('visibilitychange', sync);
+      window.addEventListener('pagehide', save);
+      setInterval(save, 1000);
+      if (btn) btn.addEventListener('click', () => {
+        // pressed while the browser was holding the sound: this tap starts it (it does not switch it off)
+        if (!off && blocked) { sync(); return; }
+        off = !off;
+        try { localStorage.setItem('cv_bgm_off', off ? '1' : '0'); } catch { /* storage blocked */ }
+        sync();
+      });
+      sync(); // plays at once where the browser allows it; otherwise at the first tap
+    },
+    /** lower the music for a moment so a warning sound is heard */
+    duck(ms) {
+      if (!el) return;
+      el.volume = VOL * 0.2; clearTimeout(duckT);
+      duckT = setTimeout(() => { el.volume = VOL; }, ms);
+    },
+  };
+})();

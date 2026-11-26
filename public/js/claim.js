@@ -2,6 +2,7 @@
 // Claim a vote card from the registration desk QR. Nothing is used up until the guest presses "รับบัตร",
 // so link previews in camera or chat apps cannot take the ticket. The card is kept on this phone and can be
 // saved as a picture; its QR is the same signed link as a printed card.
+Bgm.enable(); // background music carried over from the landing page (no button here; /vote has one)
 const CARD_KEY = 'cv_card';
 const TOKEN_KEY = 'cv_token'; // shared with the voter page, so "เข้าร่วมกิจกรรม" is already signed in
 const ticket = new URLSearchParams(location.search).get('t');

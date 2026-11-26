@@ -816,10 +816,12 @@ function voterState() {
     cheer: { open: cheerOpen(), emoji: db.cheer.emoji, text: db.cheer.text, set: CHEER_EMOJI },
     voteUrl: voteUrl(),
     booth: { drive: !!GDRIVE },
-    entries: { open: !!db.event.entriesOpen, auto: !!entriesAutoTopic() },
+    // live: the auto topic is open, so a new entry shows at once (otherwise it waits for voting to open)
+    entries: { open: !!db.event.entriesOpen, auto: !!entriesAutoTopic(), live: entriesAutoTopic()?.status === 'open' },
     topics: db.topics
       .filter((t) => t.status !== 'draft')
-      .map((t) => ({ id: t.id, title: t.title, maxVotes: t.maxVotes, status: t.status, contestants: t.contestants.map(pub) })),
+      .map((t) => ({ id: t.id, title: t.title, maxVotes: t.maxVotes, status: t.status, closesAt: t.status === 'open' ? t.closesAt || null : null, contestants: t.contestants.map(pub) })),
+    now: Date.now(), // pages correct their countdowns for a phone clock that is off
   };
 }
 
@@ -876,6 +878,7 @@ function adminState() {
     ballotCount: totalBallots(),
     entries: [...db.entries].reverse().map(({ voterId, ...e }) => e),
     drive: GDRIVE ? { email: GDRIVE.email, ...GDRIVE.status } : null,
+    now: Date.now(),
   };
 }
 
@@ -1228,16 +1231,27 @@ app.get('/api/me', (req, res) => {
   // a name the admin gave this person (roster, or the email list) is fixed: the phone shows it and offers no edit
   const r = v.kind === 'code' && db.codes[v.key]?.mail ? recipientById(db.codes[v.key].mail) : null;
   const fixedName = v.kind === 'name' ? label : r ? (r.name || r.email) : null;
-  const entries = db.entries.filter((e) => e.voterId === v.id).map((e) => ({ id: e.id, name: e.name, concept: e.concept, status: e.status }));
+  const entries = db.entries.filter((e) => e.voterId === v.id).map((e) => ({ id: e.id, name: e.name, concept: e.concept, status: e.status, live: entryLive(e) }));
   res.json({ label, fixedName, picks, entries });
 });
 
+/* deadlines: a topic whose closesAt has passed is closed by the server, so late votes are refused even
+   if a phone's clock or countdown is off */
+function closeExpired() {
+  const now = Date.now();
+  let any = false;
+  for (const t of db.topics) if (t.status === 'open' && t.closesAt && t.closesAt <= now) { t.status = 'closed'; any = true; }
+  if (any) changed();
+}
+setInterval(closeExpired, 1000).unref();
+
 app.post('/api/vote', (req, res) => {
+  closeExpired();
   const v = voterFromReq(req);
   if (!v) return fail(res, 401, 'กรุณาเข้าสู่ระบบโหวตใหม่');
   const topic = findTopic(String(req.body.topicId || ''));
   if (!topic || topic.status === 'draft') return fail(res, 404, 'ไม่พบหัวข้อนี้');
-  if (topic.status !== 'open') return fail(res, 409, 'หัวข้อนี้ปิดโหวตแล้ว');
+  if (topic.status !== 'open') return fail(res, 409, topic.closesAt ? 'หมดเวลาโหวตหัวข้อนี้แล้ว' : 'หัวข้อนี้ปิดโหวตแล้ว');
   const picks = [...new Set(Array.isArray(req.body.picks) ? req.body.picks.map(String) : [])];
   if (picks.some((id) => !topic.contestants.some((c) => c.id === id))) return fail(res, 400, 'มีผู้เข้าประกวดที่ไม่อยู่ในหัวข้อนี้ ลองโหลดหน้าใหม่');
   if (picks.length > topic.maxVotes) return fail(res, 400, `หัวข้อนี้เลือกได้ไม่เกิน ${topic.maxVotes} คน`);
@@ -1325,6 +1339,8 @@ function entriesAutoTopic() {
   if (db.event.entriesAuto === false || !db.event.entriesTopicId) return null;
   return findTopic(db.event.entriesTopicId) || null;
 }
+/** an approved entry is visible to guests only once its topic is open for voting */
+const entryLive = (e) => e.status === 'approved' && findTopic(e.topicId)?.status === 'open';
 /** adds an entry to a topic as the next number; its photo becomes the contestant's photo */
 function entryToContestant(e, topic) {
   const top = topic.contestants.reduce((m, c) => Math.max(m, parseInt(c.number, 10) || 0), 0);
@@ -1364,7 +1380,7 @@ app.post('/api/entries', (req, res) => {
       .then((buf) => sniffImage(buf) === 'jpg' && sendToDrive(buf, `contest-${fileSafe(name)}-${fileSafe(dept)}-${stamp()}.jpg`))
       .catch((err) => console.error('ส่งรูปประกวดไป Google Drive ไม่สำเร็จ:', err.message));
   }
-  res.json({ ok: true, entry: { id: e.id, name, concept, status: e.status } });
+  res.json({ ok: true, entry: { id: e.id, name, concept, status: e.status, live: entryLive(e) } });
 });
 
 /* ----- admin ----- */
@@ -1494,11 +1510,24 @@ app.put('/api/admin/topics/:id', (req, res) => {
     if (!['draft', 'open', 'closed'].includes(b.status)) return fail(res, 400, 'สถานะไม่ถูกต้อง');
     if (b.status === 'open' && topic.contestants.length === 0) return fail(res, 400, 'เพิ่มผู้เข้าประกวดก่อนเปิดโหวต');
     topic.status = b.status;
+    // a deadline already passed (or a manual close) is dropped, so reopening never closes again at once
+    if (b.status !== 'open' || (topic.closesAt && topic.closesAt <= Date.now())) topic.closesAt = null;
     // voting opens right after the intro: the screen moves on to the counter and the QR
     if (b.status === 'open' && db.screen.topicId === topic.id && db.screen.mode === 'intro') db.screen.mode = 'hidden';
     if (b.status !== 'closed' && db.screen.topicId === topic.id && db.screen.mode === 'reveal') {
       db.screen.mode = 'hidden'; db.screen.revealStep = 0;
     }
+  }
+  // deadline: closesAt (ms) or closeInMin (minutes from now); null clears it. Only for an open topic.
+  if (b.closesAt !== undefined || b.closeInMin !== undefined) {
+    let at = b.closeInMin !== undefined ? Date.now() + Number(b.closeInMin) * 60000 : b.closesAt === null ? null : Number(b.closesAt);
+    if (at !== null) {
+      if (topic.status !== 'open') return fail(res, 409, 'ตั้งเวลาปิดได้เมื่อหัวข้อเปิดโหวตอยู่');
+      if (!Number.isFinite(at) || at <= Date.now() + 5000) return fail(res, 400, 'เวลาปิดต้องอยู่ในอนาคต');
+      if (at > Date.now() + 24 * 3600 * 1000) return fail(res, 400, 'ตั้งเวลาปิดได้ไม่เกิน 24 ชั่วโมงข้างหน้า');
+      at = Math.round(at / 1000) * 1000;
+    }
+    topic.closesAt = at;
   }
   changed();
   res.json(topic);

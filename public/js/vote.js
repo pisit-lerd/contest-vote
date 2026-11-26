@@ -19,6 +19,7 @@ const urlNext = ['booth', 'contest'].includes(new URLSearchParams(location.searc
 const backToPhotoPage = () => { location.replace('/#' + urlNext); return true; };
 
 $('#offline-icon').innerHTML = icon('wifiOff');
+Bgm.enable($('#bgmBtn')); // background music carried over from the landing page
 $('#back').innerHTML = icon('chevronLeft') + '<span>หัวข้อทั้งหมด</span>';
 $('#back').addEventListener('click', () => go({ name: 'list' }));
 window.addEventListener('popstate', () => { S.view = history.state?.view || { name: 'list' }; render(); });
@@ -100,6 +101,7 @@ function noteOpened(data) {
 const isFresh = (t) => t.status === 'open' && fresh[t.id] && Date.now() - fresh[t.id] < FRESH_MS;
 
 liveStream('/api/stream', async (data) => {
+  noteServerTime(data.now);
   const first = !S.pub;
   noteOpened(data);
   S.pub = data;
@@ -240,6 +242,9 @@ function tallyHtml() {
       : '<p class="done">เปลี่ยนใจได้จนกว่าหัวข้อจะปิด · รอลุ้นประกาศผลบนจอใหญ่</p>'}</section>`;
 }
 
+/* time left before the server closes the topic */
+const deadlineChip = (t) => (t.status === 'open' && t.closesAt
+  ? `<span class="dl-chip">ปิดใน <b data-deadline="${t.closesAt}" data-done="กำลังปิด…">${fmtLeft(t.closesAt - serverNow())}</b></span>` : '');
 function cardHtml(t) {
   const picks = savedPicks(t);
   const kind = t.status !== 'open' ? 'closed' : picks.length ? 'voted' : 'todo';
@@ -248,7 +253,7 @@ function cardHtml(t) {
   const foot = kind === 'closed' && !picks.length ? 'คุณไม่ได้โหวตหัวข้อนี้' : `${ruleText(t)} · ${t.contestants.length} คนเข้าประกวด`;
   const go = kind === 'todo' ? `<span class="go">โหวต${icon('chevronRight')}</span>` : kind === 'voted' ? `<span class="go">เปลี่ยนใจ${icon('chevronRight')}</span>` : icon('chevronRight');
   return `<li><button class="t-card ${kind}" data-id="${t.id}">
-    <span class="t-top"><span>${topicNo(t)}</span>${state}</span>
+    <span class="t-top"><span>${topicNo(t)}</span>${state}</span>${deadlineChip(t)}
     <span class="t-title">${esc(t.title)}</span>${body}
     <span class="t-foot"><span>${foot}</span>${go}</span></button></li>`;
 }
@@ -309,7 +314,7 @@ function renderTopic(t) {
         : `<p>ครบทุกหัวข้อที่เปิดแล้ว · รอลุ้นประกาศผลบนจอใหญ่</p><button class="btn" data-go="">${icon('chevronLeft')}<span>กลับไปหน้ารวม</span></button>`}</div>`;
   }
   $('#app').innerHTML = `
-    <div class="topic-head"><p class="kicker"><span>${topicNo(t)}</span>${open ? '<span class="live">เปิดโหวตอยู่</span>' : '<span>ปิดรับโหวตแล้ว</span>'}</p><h2>${esc(t.title)}</h2>
+    <div class="topic-head"><p class="kicker"><span>${topicNo(t)}</span>${open ? '<span class="live">เปิดโหวตอยู่</span>' : '<span>ปิดรับโหวตแล้ว</span>'}</p>${deadlineChip(t)}<h2>${esc(t.title)}</h2>
       <p class="muted">${rule} · ${withPhotos ? 'แตะรูปเพื่อเลือก ปุ่มมุมรูปใช้ดูรูปใหญ่' : 'แตะชื่อเพื่อเลือก'}</p></div>
     ${msgHtml}
     <ul class="choices${withPhotos ? ' grid' : ''}" role="group" aria-label="${esc(t.title)}">

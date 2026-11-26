@@ -102,3 +102,11 @@ table.results td.num, table.results th.num { text-align: right; font-variant-num
 .entry-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
 .entry-row { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; padding: var(--sp-2); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface-2); }
 .entry-t { flex: 1; min-width: 180px; line-height: 1.5; overflow-wrap: anywhere; }
+
+/* closing time of an open topic */
+.deadline-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 0 var(--sp-4) var(--sp-4); }
+.deadline-row .dl-now { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: 600; }
+.deadline-row .dl-now b { font-family: var(--font-round); color: var(--color-primary); font-variant-numeric: tabular-nums; }
+.deadline-row .dl-now b.urgent { color: var(--color-danger); }
+.deadline-row .dl-set { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.deadline-row .dl-time { width: auto; min-height: 36px; padding: 0 var(--sp-2); }

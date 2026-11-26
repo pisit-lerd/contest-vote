@@ -16,6 +16,7 @@ document.addEventListener('fullscreenchange', () => { fsBtn.hidden = $('#home').
 
 // the stream when it delivers; otherwise the snapshot every 2 s (live bars stay close to real time)
 liveStream('/api/screen/stream', (data) => {
+  noteServerTime(data.now);
   state = data; draw();
   // cheers belong to the intro only: leaving it clears whatever is still floating
   if (data.screen.mode !== 'intro') { cheerBox.replaceChildren(); textQueue.length = 0; return; }
@@ -82,7 +83,7 @@ const qrPanel = () => `<aside class="qr-panel"><img src="${qrSrc()}" alt="QR ส
 function draw() {
   const s = state.screen;
   const topic = state.topics.find((t) => t.id === s.topicId) || null;
-  const newSig = JSON.stringify([state.event.name, state.voteUrl, !!state.entries?.open, !!state.entries?.auto, s.topicId, s.mode, s.revealStep, s.intro, topic && topic.status, topic && topic.contestants, !topic && state.topics.map((t) => [t.title, t.status])]);
+  const newSig = JSON.stringify([state.event.name, state.voteUrl, !!state.entries?.open, !!state.entries?.auto, !!state.entries?.live, s.topicId, s.mode, s.revealStep, s.intro, topic && topic.status, topic && topic.closesAt, topic && topic.contestants, !topic && state.topics.map((t) => [t.title, t.status, t.closesAt])]);
   if (newSig !== sig) {
     sig = newSig;
     const el = $('#stage');
@@ -101,7 +102,9 @@ function draw() {
 function header(topic) {
   const sub = topic.status === 'open' ? 'เปิดโหวตอยู่' : topic.status === 'closed' ? 'ปิดโหวตแล้ว' : 'ยังไม่เปิดโหวต';
   const rule = topic.maxVotes > 1 ? ` · เลือกได้ ${topic.maxVotes} คน` : '';
-  return `<header><p class="s-event">${esc(state.event.name)}</p><div class="s-head"><h1 class="s-title">${esc(topic.title)}</h1><p class="s-sub">${sub}${rule}</p></div></header>`;
+  const clock = topic.status === 'open' && topic.closesAt
+    ? `<p class="s-clock"><span>ปิดโหวตใน</span><b data-deadline="${topic.closesAt}" data-done="หมดเวลา">${fmtLeft(topic.closesAt - serverNow())}</b></p>` : '';
+  return `<header><p class="s-event">${esc(state.event.name)}</p><div class="s-head"><h1 class="s-title">${esc(topic.title)}</h1>${clock || `<p class="s-sub">${sub}${rule}</p>`}</div></header>`;
 }
 
 function lobby() {
@@ -110,7 +113,7 @@ function lobby() {
     <img class="qr-big" src="${qrSrc()}" alt="QR สำหรับเข้าโหวต">
     <div><h1>${esc(state.event.name)}</h1>
       <p class="scan">สแกน QR เพื่อเข้าร่วม</p><p class="url">${esc(state.voteUrl)}</p>
-      ${open.length ? `<ul>${open.map((t) => `<li>${esc(t.title)}</li>`).join('')}</ul>` : ''}
+      ${open.length ? `<ul>${open.map((t) => `<li>${esc(t.title)}${t.closesAt ? ` · <b data-deadline="${t.closesAt}" data-done="หมดเวลา">${fmtLeft(t.closesAt - serverNow())}</b>` : ''}</li>`).join('')}</ul>` : ''}
       ${state.entries?.open ? entryHowTo() : ''}
     </div></div>`;
 }
@@ -123,7 +126,7 @@ function entryHowTo() {
     <ol>
       <li>กด “ส่งประกวดชุด” แล้วยืนให้เต็มกรอบ ระบบนับถอยหลัง 5 วินาที</li>
       <li>ชอบรูปแล้วกดบันทึก จากนั้นกรอก ชื่อ / แผนก / Concept ชุด</li>
-      <li>${state.entries.auto ? 'รูปจะขึ้นบน Live Score ทันที' : 'รูปจะขึ้นบน Live Score เมื่อแอดมินอนุมัติ'}</li>
+      <li>${!state.entries.auto ? 'รูปจะขึ้นบน Live Score เมื่อแอดมินอนุมัติ' : state.entries.live ? 'รูปจะขึ้นบน Live Score ทันที' : 'รูปจะขึ้นบน Live Score เมื่อเปิดโหวต'}</li>
     </ol>
   </section>`;
 }

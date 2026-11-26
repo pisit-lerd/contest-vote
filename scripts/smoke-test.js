@@ -228,6 +228,8 @@ async function photoPageChecks() {
   const H2 = { 'X-Voter-Token': ok(await req('POST', '/api/join', { code: unused[0] })).token };
   const live = ok(await entry({ name: 'ฟ้า', concept: 'นางฟ้าไม้ถูพื้น' }, H2)).entry;
   assert.equal(live.status, 'approved');
+  assert.equal(live.live, true, 'its topic is open, so it shows now');
+  assert.equal(ok(await req('GET', '/api/state')).entries.live, true);
   pub = ok(await req('GET', '/api/state'));
   const shown = pub.topics.find((t) => t.id === topic.id).contestants.find((c) => c.name.startsWith('ฟ้า'));
   assert.ok(shown && shown.photo.startsWith('/uploads/'), 'on the voting page straight away');
@@ -236,7 +238,44 @@ async function photoPageChecks() {
   assert.equal(ok(await req('GET', '/api/state')).entries.auto, false);
   assert.equal(ok(await entry({ name: 'ดาว' }, H2)).entry.status, 'pending');
   assert.ok(!JSON.stringify(ok(await req('GET', '/api/state'))).includes('ดาว'), 'waiting entry stays private');
+  // a target topic that is not open yet: the entry joins it but waits for voting to open ("รอเปิดโหวต")
+  const later = ok(await req('POST', '/api/admin/topics', { title: 'Best Costume รอบหน้า', maxVotes: 1 }));
+  ok(await req('PUT', '/api/admin/event', { entriesAuto: true, entriesTopicId: later.id }));
+  pub = ok(await req('GET', '/api/state'));
+  assert.equal(pub.entries.auto, true); assert.equal(pub.entries.live, false);
+  const early = ok(await entry({ name: 'เมฆ' }, H2)).entry;
+  assert.equal(early.status, 'approved'); assert.equal(early.live, false);
+  assert.ok(!JSON.stringify(ok(await req('GET', '/api/state'))).includes('เมฆ'), 'not public before the topic opens');
+  assert.equal(ok(await req('GET', '/api/me', undefined, H2)).entries.find((e) => e.name === 'เมฆ').live, false);
+  ok(await req('PUT', `/api/admin/topics/${later.id}`, { status: 'open' }));
+  assert.equal(ok(await req('GET', '/api/me', undefined, H2)).entries.find((e) => e.name === 'เมฆ').live, true, 'live once voting opens');
   driveSrv.close();
+}
+
+/* ================= voting deadline: the server closes a topic on time and refuses late votes ================= */
+async function deadlineChecks() {
+  const t = ok(await req('POST', '/api/admin/topics', { title: 'มีเวลาปิด', maxVotes: 1 }));
+  const c = ok(await req('POST', `/api/admin/topics/${t.id}/contestants`, { number: '1', name: 'ทดสอบเวลา' }));
+  assert.equal((await req('PUT', `/api/admin/topics/${t.id}`, { closeInMin: 5 })).status, 409, 'only an open topic gets a deadline');
+  ok(await req('PUT', `/api/admin/topics/${t.id}`, { status: 'open' }));
+  assert.equal((await req('PUT', `/api/admin/topics/${t.id}`, { closesAt: Date.now() - 1000 })).status, 400, 'past time refused');
+  assert.equal((await req('PUT', `/api/admin/topics/${t.id}`, { closesAt: 'soon' })).status, 400);
+  assert.equal((await req('PUT', `/api/admin/topics/${t.id}`, { closeInMin: 60 * 25 })).status, 400, 'at most 24 hours ahead');
+  const at = Date.now() + 6500;
+  ok(await req('PUT', `/api/admin/topics/${t.id}`, { closesAt: at }));
+  let pub = ok(await req('GET', '/api/state'));
+  assert.ok(Math.abs(pub.now - Date.now()) < 3000, 'pages get the server clock');
+  assert.ok(Math.abs(pub.topics.find((x) => x.id === t.id).closesAt - at) <= 1000, 'pages get the closing time');
+  const code = ok(await req('GET', '/api/admin/codes')).codes.find((x) => !x.used).code;
+  const H = { 'X-Voter-Token': ok(await req('POST', '/api/join', { code })).token };
+  ok(await req('POST', '/api/vote', { topicId: t.id, picks: [c.id] }, H));
+  await new Promise((r) => setTimeout(r, at - Date.now() + 1300));
+  pub = ok(await req('GET', '/api/state'));
+  assert.equal(pub.topics.find((x) => x.id === t.id).status, 'closed', 'closed by the server on time');
+  const late = await req('POST', '/api/vote', { topicId: t.id, picks: [] }, H);
+  assert.equal(late.status, 409); assert.match(late.data.error, /หมดเวลา/);
+  ok(await req('PUT', `/api/admin/topics/${t.id}`, { status: 'open' }));
+  assert.equal(ok(await req('GET', '/api/state')).topics.find((x) => x.id === t.id).closesAt, null, 'reopening drops the old deadline');
 }
 
 async function main() {
@@ -540,8 +579,15 @@ async function main() {
     c.abort();
     return txt.split('data: ')[1].split('\n')[0];
   };
-  assert.equal(await (await fetch(BASE + '/api/screen/state')).text(), await firstMsg('/api/screen/stream'), 'screen snapshot = stream');
-  assert.equal(await (await fetch(BASE + '/api/state')).text(), await firstMsg('/api/stream'), 'voter snapshot = stream');
+  // (apart from now, the server's clock at the moment each was sent, for the countdowns)
+  const sameButNow = (a, b, msg) => {
+    const x = JSON.parse(a), y = JSON.parse(b);
+    assert.ok(Number.isFinite(x.now) && Number.isFinite(y.now), msg + ': carries now');
+    delete x.now; delete y.now;
+    assert.deepEqual(x, y, msg);
+  };
+  sameButNow(await (await fetch(BASE + '/api/screen/state')).text(), await firstMsg('/api/screen/stream'), 'screen snapshot = stream');
+  sameButNow(await (await fetch(BASE + '/api/state')).text(), await firstMsg('/api/stream'), 'voter snapshot = stream');
   const vs = await fetch(BASE + '/api/state');
   assert.equal(vs.headers.get('cache-control'), 'no-cache');
   const vsBody = await vs.json();
@@ -660,6 +706,7 @@ async function main() {
   assert.match((await req('POST', '/api/admin/mail/send', { which: 'failed' })).data.error, /BREVO_API_KEY/);
 
   await photoPageChecks();
+  await deadlineChecks();
   console.log('ALL PASSED');
 }
 

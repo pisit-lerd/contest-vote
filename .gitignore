@@ -2,3 +2,6 @@ node_modules
 data
 .env
 gdrive-key.json
+# sound clips: copied onto each machine, not published (see README "Sounds")
+sounds/
+public/sounds/*.mp3
