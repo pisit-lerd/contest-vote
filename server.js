@@ -261,18 +261,46 @@ async function checkDrive() {
     if (!r.ok) throw new Error(driveError(r, j));
     if (j.mimeType !== 'application/vnd.google-apps.folder') throw new Error('GDRIVE_FOLDER_ID ไม่ใช่โฟลเดอร์');
     if (!j.driveId) throw new Error('โฟลเดอร์นี้อยู่ใน My Drive ต้องย้ายไปอยู่ใน Shared Drive (service account เก็บไฟล์ใน My Drive ไม่ได้)');
+    for (const kind of Object.keys(DRIVE_SUBFOLDERS)) await driveSubfolder(kind); // found or made now, not at the first upload
     GDRIVE.status = { ok: true, folderName: j.name || '', error: '' };
-    console.log(`Google Drive พร้อม: รูปจาก Photo Booth จะไปที่โฟลเดอร์ "${j.name}"`);
+    console.log(`Google Drive พร้อม: รูปไปที่โฟลเดอร์ "${j.name}" แยกเป็น ${Object.values(DRIVE_SUBFOLDERS).join(' และ ')}`);
   } catch (e) {
     GDRIVE.status = { ok: false, folderName: '', error: e.message };
     console.log(`[!] Google Drive ยังใช้ไม่ได้: ${e.message}`);
   }
   changed();
 }
-async function sendToDrive(buf, filename) {
+/* each kind of picture has its own folder inside GDRIVE_FOLDER_ID, found by name or made on first use */
+const DRIVE_SUBFOLDERS = { booth: 'photobooth', contest: 'contest' };
+const driveFolderIds = {}; // kind -> Promise<folder id>, so uploads at the same moment never make two folders
+function driveSubfolder(kind) {
+  if (driveFolderIds[kind]) return driveFolderIds[kind];
+  const name = DRIVE_SUBFOLDERS[kind];
+  driveFolderIds[kind] = (async () => {
+    const t = await driveToken();
+    const headers = { Authorization: `Bearer ${t}` };
+    const q = `name = '${name}' and mimeType = 'application/vnd.google-apps.folder' and '${GDRIVE.folder}' in parents and trashed = false`;
+    const r = await fetch(`${GDRIVE_API}/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=files(id)`, { headers, signal: AbortSignal.timeout(15000) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(driveError(r, j));
+    if (j.files && j.files[0]) return j.files[0].id;
+    const c = await fetch(`${GDRIVE_API}/drive/v3/files?supportsAllDrives=true&fields=id`, {
+      method: 'POST', signal: AbortSignal.timeout(15000), headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [GDRIVE.folder] }),
+    });
+    const cj = await c.json().catch(() => ({}));
+    if (!c.ok || !cj.id) throw new Error(`สร้างโฟลเดอร์ ${name} ใน Drive ไม่ได้: ${driveError(c, cj)}`);
+    console.log(`สร้างโฟลเดอร์ "${name}" ใน Google Drive แล้ว`);
+    return cj.id;
+  })();
+  driveFolderIds[kind].catch(() => { delete driveFolderIds[kind]; }); // try again next time
+  return driveFolderIds[kind];
+}
+async function sendToDrive(buf, filename, kind) {
+  const parent = await driveSubfolder(kind);
   const t = await driveToken();
   const boundary = 'cv' + crypto.randomBytes(12).toString('hex');
-  const meta = JSON.stringify({ name: filename, parents: [GDRIVE.folder], mimeType: 'image/jpeg' });
+  const meta = JSON.stringify({ name: filename, parents: [parent], mimeType: 'image/jpeg' });
   const body = Buffer.concat([
     Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: image/jpeg\r\n\r\n`),
     buf, Buffer.from(`\r\n--${boundary}--`),
@@ -1326,7 +1354,7 @@ app.post('/api/booth', async (req, res) => {
   guestLimits.boothAll.take('*');
   driveBusy++;
   try {
-    await sendToDrive(buf, `photobooth-${stamp()}-${crypto.randomBytes(3).toString('hex')}.jpg`);
+    await sendToDrive(buf, `photobooth-${stamp()}-${crypto.randomBytes(3).toString('hex')}.jpg`, 'booth');
     res.json({ ok: true });
   } catch (e) {
     console.error('ส่งรูปไป Google Drive ไม่สำเร็จ:', e.message);
@@ -1377,7 +1405,7 @@ app.post('/api/entries', (req, res) => {
   // a copy for the same Drive folder as the booth pictures; a Drive hiccup never blocks the entry
   if (GDRIVE) {
     fs.promises.readFile(path.join(UPLOAD_DIR, path.basename(p.url)))
-      .then((buf) => sniffImage(buf) === 'jpg' && sendToDrive(buf, `contest-${fileSafe(name)}-${fileSafe(dept)}-${stamp()}.jpg`))
+      .then((buf) => sniffImage(buf) === 'jpg' && sendToDrive(buf, `contest-${fileSafe(name)}-${fileSafe(dept)}-${stamp()}.jpg`, 'contest'))
       .catch((err) => console.error('ส่งรูปประกวดไป Google Drive ไม่สำเร็จ:', err.message));
   }
   res.json({ ok: true, entry: { id: e.id, name, concept, status: e.status, live: entryLive(e) } });
