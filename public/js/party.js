@@ -594,7 +594,9 @@ function bind() {
 async function boot() {
   buildFrames(); bind();
   await F.loadArt();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+  // the frames draw Thai names and labels: load the Thai part of each font first (see loadFonts in common.js)
+  loadFonts(['500 26px Anuphan', '600 28px Anuphan', '700 34px Anuphan', '600 26px "Chakra Petch"', '700 30px "Chakra Petch"', '600 56px Mali'])
+    .then(drawAll);
   const h = location.hash.slice(1);
   goScreen(['booth', 'contest'].includes(h) ? h : 'home', false);
   await loadMe();
