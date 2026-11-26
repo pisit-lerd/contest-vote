@@ -355,6 +355,15 @@ function unlockAudio() {
   } catch { audioCtx = null; }
 }
 for (const ev of ['touchend', 'click', 'keydown', 'pointerdown', 'touchstart']) document.addEventListener(ev, unlockAudio, { passive: true });
+/** sound is ready for the warnings (the browser has let the audio context start) */
+const soundReady = () => !!audioCtx && audioCtx.state === 'running';
+// where the browser already allows sound (a computer that has played this site before), start without a tap
+// (otherwise the context stays suspended until the first tap; nothing is played)
+try {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'running') loadClips();
+  else audioCtx.resume().then(() => { if (audioCtx.state === 'running') loadClips(); }, () => {});
+} catch { audioCtx = null; }
 function buzzer() {
   if (!audioCtx || audioCtx.state !== 'running') return;
   const t0 = audioCtx.currentTime;
@@ -457,6 +466,8 @@ const Bgm = (() => {
       });
       sync(); // plays at once where the browser allows it; otherwise at the first tap
     },
+    /** the browser is holding the music back until a tap */
+    isBlocked: () => blocked,
     /** lower the music for a moment so a warning sound is heard */
     duck(ms) {
       if (!el) return;

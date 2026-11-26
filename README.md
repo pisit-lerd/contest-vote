@@ -24,6 +24,9 @@ npm install
 ADMIN_PASSWORD=choose-a-long-password npm start
 ```
 
+While changing the code, `npm run dev` restarts the server whenever `server.js` (or a file it loads) changes,
+using Node's own `--watch` (no extra package). Pages and CSS need only a browser refresh.
+
 To avoid typing settings on every start, put them in a `.env` file (see "Keep settings in a .env file") and run just
 `npm start`.
 
@@ -195,7 +198,9 @@ When the time runs out, every page that was counting down shows a shaking "⏰ �
 followed by `public/sounds/time-up.mp3`, and phones vibrate. Guest pages (the landing page with its photo screens,
 `/vote` and `/claim`) loop `public/sounds/home-loop.mp3`, on by default, and carry it on from the same spot when the
 guest moves between them. Browsers hold sound back until someone taps the page, so it starts at once where the
-browser allows it and otherwise at the first tap anywhere (the speaker button pulses meanwhile). The speaker button on the landing page
+browser allows it and otherwise at the first tap anywhere (the speaker button pulses meanwhile). On a phone that holds sound
+back, the landing page first shows a full-screen "แตะเพื่อเข้างาน 🎉" card (once per visit): that tap starts the music
+and readies the countdown sounds. The speaker button on the landing page
 and on `/vote` turns it off, remembered on that phone; it dips under the warning sounds. The big screen and admin
 play no music. Browsers only play sound after someone has tapped or pressed a key on that page, so on the projector
 press "เต็มจอ" or F once before voting starts; a phone that has been tapped (to vote) plays it too, unless it is on
