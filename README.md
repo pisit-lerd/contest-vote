@@ -156,7 +156,9 @@ The first time the admin page opens, a checklist at the top walks through steps 
    - "แนะนำตัว" (introduce) shows one contestant at a time, large photo, number and name, while they walk on
      stage. Guests can cheer from their phones during this part. See "Contestant intro and cheers". This is the only
      mode that shows a topic that is not open for voting yet; the other modes need the topic open.
-   - "ซ่อนคะแนน" (hide scores) shows only how many people have voted; "โชว์คะแนนสด" (show live scores) shows a live
+   - "ซ่อนคะแนน" (hide scores) shows only how many people have voted; while the topic is open the contestant boxes
+     swap places at random every few seconds to a looping `public/sounds/avengers.mp3`, so the room feels the race
+     without seeing it (the order is random on the screen, never the real counts); "โชว์คะแนนสด" (show live scores) shows a live
      ranking: 1st place large, 2nd and 3rd beside it, everyone else as a numbered list with the voter count and QR.
      It re-sorts on every vote; ties share a place and nobody is placed on 0 votes.
    - "ประกาศผล" (announce results) works once voting is closed. Then reveal 3rd → 2nd → 1st one step at a time
@@ -209,19 +211,23 @@ phone still shows the "⏰ หมดเวลา!" stamp and vibrates. On a phon
 landing page first shows a full-screen "แตะเพื่อเข้างาน 🎉" card (once per visit): that tap starts the music and readies
 the countdown sounds.
 
-The big screen always plays the countdown sounds and never music; the admin page plays nothing. Browsers only play
+The big screen plays the countdown sounds and, in "ซ่อนคะแนน" mode, the shuffle music. Its own speaker button (bottom
+right, kept in full screen) turns both off and on; it is on by default and separate from the guest pages' speaker, so
+switching sound off on the landing page does not silence the projector. While the browser still holds sound back, the
+screen shows "🔇 แตะหน้าจอเพื่อเปิดเสียง". The admin page plays nothing. Browsers only play
 sound after someone has tapped or pressed a key on that page, so on the projector press "เต็มจอ" or F once before
 voting starts. A page opened after the deadline passed does not sound.
 
 ### Sounds
 
-Three MP3 clips in `public/sounds/` come with the repository and go into the Docker image:
+Four MP3 clips in `public/sounds/` come with the repository and go into the Docker image:
 
 | File | Plays |
 |---|---|
 | `home-loop.mp3` | looped on the guest pages |
 | `iron-chep.mp3` | one minute before a topic closes |
 | `time-up.mp3` | after the time's-up buzzer |
+| `avengers.mp3` | looped on the big screen in "ซ่อนคะแนน" mode while voting is open (pauses for the warnings) |
 
 Replace a file (same name) to change a sound. They are short clips from games and memes; the repository is public,
 so anyone can download them. Without a file the pages stay silent where it would play (the buzzer and the

@@ -97,6 +97,111 @@ function draw() {
     lastVoters = null;
   }
   patch(topic, s);
+  hype(s.mode === 'hidden' && !!topic && topic.status === 'open');
+}
+
+/* hidden scores while voting is open: the boxes swap places every few seconds to the Avengers theme, so the room
+   feels the ranking moving without seeing it. The order is random on this page only, never the real counts. */
+const HYPE_SRC = '/sounds/avengers.mp3', SHUFFLE_MS = 2600;
+let hypeOn = false, hypeEl = null, shuffleT = null, duckUntil = 0;
+// the screen's own speaker button: on by default, remembered on this computer, separate from the guest pages'
+// speaker (switching sound off on the landing page must not silence the projector). It covers the shuffle music and
+// the countdown sounds.
+let screenMuted = false;
+try { screenMuted = localStorage.getItem('cv_screen_snd_off') === '1'; } catch { /* storage blocked */ }
+Bgm.muteWhen(() => screenMuted);
+const sndBtn = $('#snd');
+function paintSnd() {
+  sndBtn.setAttribute('aria-pressed', String(!screenMuted));
+  sndBtn.setAttribute('aria-label', screenMuted ? 'เปิดเสียง' : 'ปิดเสียง');
+}
+paintSnd();
+sndBtn.addEventListener('click', () => {
+  screenMuted = !screenMuted;
+  try { localStorage.setItem('cv_screen_snd_off', screenMuted ? '1' : '0'); } catch { /* storage blocked */ }
+  paintSnd();
+  if (screenMuted) { hypeEl?.pause(); if (hypeOn) hypeState('muted'); } else hypePlay();
+});
+function hype(on) {
+  if (on === hypeOn) return;
+  hypeOn = on;
+  clearInterval(shuffleT); shuffleT = null;
+  if (on) {
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) shuffleT = setInterval(shuffleCards, SHUFFLE_MS);
+    if (!hypeEl) { hypeEl = new Audio(HYPE_SRC); hypeEl.loop = true; hypeEl.volume = 0.7; hypeEl.preload = 'auto'; }
+    hypePlay();
+  } else { hypeEl?.pause(); hypeState('off'); }
+}
+// on the screen: a small "tap for sound" pill while the browser holds the music back
+function hypeState(st) {
+  document.body.dataset.hype = st;
+  let pill = document.getElementById('hypeHint');
+  if (st === 'blocked' && !pill) {
+    pill = document.createElement('button');
+    pill.id = 'hypeHint'; pill.type = 'button'; pill.className = 'hype-hint';
+    pill.textContent = '🔇 แตะหน้าจอเพื่อเปิดเสียง';
+    document.body.append(pill);
+  }
+  if (pill) pill.hidden = st !== 'blocked';
+}
+// browsers play only after a tap or key on the page ("เต็มจอ" or F): try again then
+function hypePlay() {
+  if (!hypeOn || !hypeEl || !hypeEl.paused || Date.now() < duckUntil || document.hidden) return;
+  if (screenMuted) { hypeState('muted'); return; }
+  hypeEl.play().then(() => hypeState('playing'), (e) => hypeState(e && e.name === 'NotAllowedError' ? 'blocked' : 'error'));
+}
+for (const ev of ['click', 'keydown', 'touchend']) document.addEventListener(ev, hypePlay, { passive: true });
+document.addEventListener('visibilitychange', () => { if (document.hidden) hypeEl?.pause(); else hypePlay(); });
+// the one-minute and time's-up sounds get the room to themselves
+document.addEventListener('cv-duck', (e) => {
+  duckUntil = Date.now() + (e.detail || 0);
+  hypeEl?.pause();
+  setTimeout(hypePlay, (e.detail || 0) + 50);
+});
+// each round a few pairs of boxes clash: both rush to the middle, hit with a 💥, bounce off and land in each other's place
+function shuffleCards() {
+  const grid = document.querySelector('.c-grid');
+  if (!grid || document.hidden) return;
+  const cards = [...grid.children].filter((c) => c.classList.contains('c-card'));
+  if (cards.length < 2) return;
+  const pool = cards.slice();
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const pairs = [];
+  const want = Math.max(1, Math.min(3, Math.floor(cards.length / 3)));
+  while (pairs.length < want && pool.length >= 2) pairs.push([pool.pop(), pool.pop()]);
+  const box = grid.getBoundingClientRect();
+  for (const [x, y] of pairs) {
+    const ra = x.getBoundingClientRect(), rb = y.getBoundingClientRect();
+    swapNodes(x, y);
+    const na = x.getBoundingClientRect(), nb = y.getBoundingClientRect();
+    clash(x, ra, na, rb, -1); clash(y, rb, nb, ra, 1);
+    // the burst where they meet
+    const fx = document.createElement('span');
+    fx.className = 'clash-fx'; fx.textContent = '💥';
+    fx.style.left = ((ra.left + ra.width / 2 + rb.left + rb.width / 2) / 2 - box.left) + 'px';
+    fx.style.top = ((ra.top + ra.height / 2 + rb.top + rb.height / 2) / 2 - box.top) + 'px';
+    grid.append(fx); setTimeout(() => fx.remove(), 1000);
+  }
+}
+function swapNodes(a, b) {
+  const mark = document.createComment('');
+  a.replaceWith(mark); b.replaceWith(a); mark.replaceWith(b);
+}
+// from its old place (from) to its new one (to), by way of the point where it meets the other box (other)
+function clash(el, from, to, other, side) {
+  const cx = (r) => r.left + r.width / 2, cy = (r) => r.top + r.height / 2;
+  const midX = (cx(from) + cx(other)) / 2, midY = (cy(from) + cy(other)) / 2;
+  // stop a little short of the middle so the two boxes touch instead of overlapping
+  const hitX = midX + (cx(from) - midX) * 0.35 - cx(to), hitY = midY + (cy(from) - midY) * 0.35 - cy(to);
+  const sx = cx(from) - cx(to), sy = cy(from) - cy(to);
+  const t = (x, y, extra = '') => `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) ${extra}`;
+  el.animate([
+    { transform: t(sx, sy), zIndex: 3 },
+    { transform: t(hitX, hitY, `scale(1.12) rotate(${side * 5}deg)`), zIndex: 3, offset: 0.38, easing: 'cubic-bezier(.6,0,.9,.4)' },
+    { transform: t(hitX * 1.15, hitY * 1.15, `scale(.94) rotate(${-side * 8}deg)`), zIndex: 3, offset: 0.48 },
+    { transform: t(hitX * 0.9, hitY * 0.9, `scale(1.06) rotate(${side * 4}deg)`), zIndex: 3, offset: 0.56 },
+    { transform: 'none', zIndex: 3 },
+  ], { duration: 1100, easing: 'cubic-bezier(.3,.9,.4,1.15)' });
 }
 
 function header(topic) {
