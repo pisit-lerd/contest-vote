@@ -10,6 +10,7 @@ registration desk (`/checkin`) where guests scan to get their vote card (`/claim
 No database to set up: data lives in `data/db.json` and contestant photos in `data/uploads/`.
 
 The screens are in Thai. Buttons and labels below are quoted exactly as they appear, with an English translation.
+A Thai guide for organisers covering what each page does and how to use it: [docs/user-guide.md](docs/user-guide.md).
 
 **Security:** version 1.1.1 was checked with ai-secure-audit 0.0.10 and its audit skills (which found two problems,
 fixed in 1.1.1), 19 hand-made cheating attempts and tests for the desk tickets, the intro and cheers. See
