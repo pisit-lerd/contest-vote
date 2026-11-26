@@ -16,7 +16,7 @@ document.addEventListener('fullscreenchange', () => { fsBtn.hidden = $('#home').
 
 // the stream when it delivers; otherwise the snapshot every 2 s (live bars stay close to real time)
 liveStream('/api/screen/stream', (data) => {
-  noteServerTime(data.now);
+  noteServerTime(data.now); noteTopics(data.topics);
   state = data; draw();
   // cheers belong to the intro only: leaving it clears whatever is still floating
   if (data.screen.mode !== 'intro') { cheerBox.replaceChildren(); textQueue.length = 0; return; }

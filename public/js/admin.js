@@ -122,7 +122,7 @@ function renderShell() {
 function renderMain() {
   const main = $('#main');
   if (!main || !A.st) return;
-  noteServerTime(A.st.now);
+  noteServerTime(A.st.now); noteTopics(A.st.topics);
   $('#ev-title').textContent = A.st.event.name;
   document.title = 'แอดมิน · ' + A.st.event.name;
   const y = window.scrollY;

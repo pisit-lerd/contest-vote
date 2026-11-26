@@ -541,7 +541,7 @@ async function boot() {
   goScreen(['booth', 'contest'].includes(h) ? h : 'home', false);
   await loadMe();
   liveStream('/api/stream', async (data) => {
-    noteServerTime(data.now);
+    noteServerTime(data.now); noteTopics(data.topics);
     P.pub = data; F.setTitle(data.event.name);
     // "no entry details" mode: join quietly, like the voting page does
     if (!P.token && data.event.accessMode === 'open' && !P.joining) {
