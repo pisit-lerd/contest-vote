@@ -130,3 +130,8 @@ body.stage::before { left: 0; box-shadow: 8px 0 24px rgba(0, 0, 0, .55); }
 body.stage::after { right: 0; box-shadow: -8px 0 24px rgba(0, 0, 0, .55); }
 .s-title, .lobby h1 { font-family: var(--font-display); font-weight: 500; }
 .counter .n { font-family: var(--font-round); }
+
+/* back to the landing page (guests open this page from "Live Score"); hidden in full screen like .fs-btn */
+.home-btn { position: fixed; left: 2.6vw; bottom: 1vw; z-index: var(--z-sticky); background: var(--stage-panel); color: var(--stage-text); border-radius: var(--radius-pill); padding: 8px 16px; text-decoration: none; font-weight: 600; line-height: 1.5; }
+.home-btn:hover { background: var(--stage-panel-2); }
+.home-btn:focus-visible { outline: 3px solid var(--stage-bar); outline-offset: 2px; }
