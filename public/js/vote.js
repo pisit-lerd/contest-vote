@@ -101,7 +101,7 @@ function noteOpened(data) {
 const isFresh = (t) => t.status === 'open' && fresh[t.id] && Date.now() - fresh[t.id] < FRESH_MS;
 
 liveStream('/api/stream', async (data) => {
-  noteServerTime(data.now);
+  noteServerTime(data.now); noteTopics(data.topics);
   const first = !S.pub;
   noteOpened(data);
   S.pub = data;

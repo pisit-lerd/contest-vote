@@ -239,63 +239,104 @@ function fmtClock(ms) {
   const d = new Date(ms - serverSkew); // shown in this device's time zone
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
-// "time's up" fires once per deadline, and only for one this page watched counting down (not on a page
-// opened after it passed). The deadline is remembered even if the server closes the topic and the countdown
-// disappears from the page a moment before the tick reaches zero.
-const armedDeadlines = new Set(); const firedDeadlines = new Set();
-// the same for the one-minute warning: armed while more than a minute is left, fired once at 60 seconds
-const armedMinute = new Set(); const firedMinute = new Set();
+// "time's up" and the one-minute clip follow each topic's current deadline, as the server last reported it
+// (pages pass their topics to noteTopics). A deadline that was changed, cleared, or ended early by closing the
+// topic by hand is dropped, so only the deadline that really ends voting fires. It fires once, and only on a
+// page that watched it count down (not on a page opened after it passed), even if the server's "closed"
+// update arrives a moment before this page's tick reaches zero.
+const topicClocks = new Map(); // topic id -> { status, closesAt } from the latest snapshot
+const armedEnd = new Map(); const armedMinute = new Map(); // topic id -> deadline being watched
+const fired = new Set(); // "end:<id>:<ms>" / "min:<id>:<ms>"
+function noteTopics(topics) {
+  topicClocks.clear();
+  for (const t of topics || []) topicClocks.set(t.id, { status: t.status, closesAt: t.closesAt || null });
+  checkDeadlines();
+}
+/** still the deadline that ends this topic? (changed, cleared, deleted or closed by hand before it: no) */
+function stillDue(id, d) {
+  const t = topicClocks.get(id);
+  if (!t) return false;
+  if (t.status === 'open') return t.closesAt === d;
+  return serverNow() >= d - 2000; // closed: by the deadline itself, not by hand well before it
+}
+function checkDeadlines() {
+  const now = serverNow();
+  for (const [id, t] of topicClocks) {
+    if (t.status !== 'open' || !t.closesAt) continue;
+    if (t.closesAt - now > 1000) armedEnd.set(id, t.closesAt); // a new time replaces the old one
+    if (t.closesAt - now > 61000) armedMinute.set(id, t.closesAt);
+  }
+  for (const [id, d] of armedMinute) {
+    if (!stillDue(id, d)) { armedMinute.delete(id); continue; }
+    if (d - now > 60000) continue;
+    armedMinute.delete(id);
+    if (d - now > 0 && !fired.has(`min:${id}:${d}`)) { fired.add(`min:${id}:${d}`); finalMinute(); }
+  }
+  for (const [id, d] of armedEnd) {
+    if (!stillDue(id, d)) { armedEnd.delete(id); continue; }
+    if (now < d) continue;
+    armedEnd.delete(id);
+    if (!fired.has(`end:${id}:${d}`)) { fired.add(`end:${id}:${d}`); timeUp(d); }
+  }
+}
 function tickCountdowns() {
   for (const el of document.querySelectorAll('[data-deadline]')) {
-    const d = Number(el.dataset.deadline), left = d - serverNow();
-    if (left > 1000) armedDeadlines.add(d);
-    if (left > 61000) armedMinute.add(d);
+    const left = Number(el.dataset.deadline) - serverNow();
     const text = left > 0 ? fmtLeft(left) : (el.dataset.done || 'หมดเวลา');
     if (el.textContent !== text) el.textContent = text;
     el.classList.toggle('urgent', left > 0 && left <= 60000);
   }
-  for (const d of armedMinute) {
-    const left = d - serverNow();
-    if (left > 60000 || firedMinute.has(d)) continue;
-    firedMinute.add(d); armedMinute.delete(d);
-    if (left > 0) finalMinute();
-  }
-  for (const d of armedDeadlines) {
-    if (serverNow() < d || firedDeadlines.has(d)) continue;
-    firedDeadlines.add(d); armedDeadlines.delete(d);
-    timeUp(d);
-  }
+  checkDeadlines();
 }
 setInterval(tickCountdowns, 1000);
 
 /* ---------- time's up: a shaking "หมดเวลา!" stamp, a buzzer, and a buzz on phones ---------- */
 let audioCtx = null;
-// browsers only allow sound after the person has tapped or pressed a key on the page (the big screen: "เต็มจอ" or F)
-// short clips in public/sounds/, loaded once and reused: one minute left, and after the time's-up buzzer
+// Browsers only allow sound after a tap or key press on the page (the big screen: "เต็มจอ" or F). Phones count
+// touchend and click as that tap, not touchstart or pointerdown, so all of them are listened to and the unlock
+// is retried on every tap until the audio is really running.
+// The short clips (public/sounds/) are decoded once and played through the same Web Audio context as the buzzer:
+// on iPhone that mixes them reliably over the background music and lets their volume be set.
 const CLIPS = { minute: '/sounds/iron-chep.mp3', timeUp: '/sounds/time-up.mp3' };
-const clipEls = {};
-const clip = (k) => { if (!clipEls[k]) { clipEls[k] = new Audio(CLIPS[k]); clipEls[k].preload = 'auto'; } return clipEls[k]; };
-function playClip(k) {
-  const a = clip(k);
-  try { a.muted = false; a.currentTime = 0; a.play().catch(() => {}); } catch { /* sound not allowed yet */ }
+const clipBufs = {}; let clipsLoading = false;
+function loadClips() {
+  if (clipsLoading || !audioCtx) return;
+  clipsLoading = true;
+  for (const [k, url] of Object.entries(CLIPS)) {
+    fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
+      .then((buf) => new Promise((ok, no) => audioCtx.decodeAudioData(buf, ok, no))) // callback form: older Safari
+      .then((b) => { clipBufs[k] = b; })
+      .catch(() => { clipsLoading = false; }); // missing file or no network: tried again at the next tap
+  }
 }
-const finalMinute = () => { Bgm.duck(3000); playClip('minute'); };
-let clipsPrimed = false;
-function unlockAudio() {
-  // iPhone: an audio element plays later only if it was started once during a tap, so start each silently now
-  if (!clipsPrimed) {
-    clipsPrimed = true;
-    for (const k of Object.keys(CLIPS)) {
-      const a = clip(k);
-      try { a.muted = true; a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }, () => { a.muted = false; clipsPrimed = false; }); } catch { clipsPrimed = false; }
-    }
+const clipEls = {}; // fallback when Web Audio is not available
+function playClip(k) {
+  if (audioCtx && audioCtx.state === 'running' && clipBufs[k]) {
+    const src = audioCtx.createBufferSource(), g = audioCtx.createGain();
+    src.buffer = clipBufs[k]; g.gain.value = 0.9;
+    src.connect(g); g.connect(audioCtx.destination); src.start();
+    return;
   }
   try {
+    const a = clipEls[k] || (clipEls[k] = new Audio(CLIPS[k]));
+    a.currentTime = 0; a.play().catch(() => {});
+  } catch { /* sound not allowed yet */ }
+}
+// two topics ending (or reaching their last minute) together give one set of sounds, not a pile-up
+let lastMinuteAt = 0, lastTimeUpAt = 0;
+const finalMinute = () => { if (Date.now() - lastMinuteAt < 4000) return; lastMinuteAt = Date.now(); Bgm.duck(3000); playClip('minute'); };
+function unlockAudio() {
+  try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state !== 'running') {
+      audioCtx.resume().then(loadClips, () => {});
+      // iPhone: the context starts only once a sound is played during the tap itself; a silent one does
+      const b = audioCtx.createBuffer(1, 1, 22050), src = audioCtx.createBufferSource();
+      src.buffer = b; src.connect(audioCtx.destination); src.start(0);
+    } else loadClips();
   } catch { audioCtx = null; }
 }
-for (const ev of ['pointerdown', 'keydown', 'touchstart']) document.addEventListener(ev, unlockAudio, { passive: true });
+for (const ev of ['touchend', 'click', 'keydown', 'pointerdown', 'touchstart']) document.addEventListener(ev, unlockAudio, { passive: true });
 function buzzer() {
   if (!audioCtx || audioCtx.state !== 'running') return;
   const t0 = audioCtx.currentTime;
@@ -312,10 +353,14 @@ function buzzer() {
 }
 let timeUpStyle = false;
 function timeUp(deadline) {
-  Bgm.duck(13000); // buzzer, then the time's-up clip
-  buzzer();
-  setTimeout(() => playClip('timeUp'), 1800); // right after the buzzer's long horn
-  try { if (navigator.vibrate) navigator.vibrate([180, 90, 180, 90, 420]); } catch { /* not on this device */ }
+  const again = Date.now() - lastTimeUpAt < 12000; // another topic ending with this one: just shake its countdown
+  if (!again) {
+    lastTimeUpAt = Date.now();
+    Bgm.duck(13000); // buzzer, then the time's-up clip
+    buzzer();
+    setTimeout(() => playClip('timeUp'), 1800); // right after the buzzer's long horn
+    try { if (navigator.vibrate) navigator.vibrate([180, 90, 180, 90, 420]); } catch { /* not on this device */ }
+  }
   if (!timeUpStyle) { // one place for every page (index.html does not load base.css)
     timeUpStyle = true;
     const st = document.createElement('style');
@@ -331,6 +376,7 @@ box-shadow:0 .2em .5em rgba(40,10,0,.55),inset 0 0 0 .06em rgba(255,248,240,.7);
     document.head.append(st);
   }
   for (const el of document.querySelectorAll(`[data-deadline="${deadline}"]`)) { el.classList.remove('tu-shake'); void el.offsetWidth; el.classList.add('tu-shake'); }
+  if (again) return;
   const ov = document.createElement('div');
   ov.className = 'tu-overlay'; ov.setAttribute('role', 'alert');
   const card = document.createElement('div'); card.className = 'tu-card'; card.textContent = '⏰ หมดเวลา!';
@@ -346,7 +392,7 @@ box-shadow:0 .2em .5em rgba(40,10,0,.55),inset 0 0 0 .06em rgba(255,248,240,.7);
 const Bgm = (() => {
   const SRC = '/sounds/home-loop.mp3', VOL = 0.55;
   // on by default; the speaker button's choice is remembered on this phone
-  let el = null, enabled = false, btn = null, off = false, blocked = false, duckT = null;
+  let el = null, enabled = false, btn = null, off = false, blocked = false, duckT = null, ducked = false;
   try { off = localStorage.getItem('cv_bgm_off') === '1'; } catch { /* storage blocked */ }
   const save = () => { try { if (el && !el.paused) sessionStorage.setItem('cv_bgm_t', String(el.currentTime)); } catch { /* storage blocked */ } };
   function paint() {
@@ -357,6 +403,7 @@ const Bgm = (() => {
   }
   function sync() {
     if (!enabled) return;
+    if (ducked) return;
     if (!off && !document.hidden) {
       el.play().then(() => { blocked = false; paint(); }, () => { blocked = true; paint(); });
     } else { save(); el.pause(); }
@@ -387,8 +434,12 @@ const Bgm = (() => {
     /** lower the music for a moment so a warning sound is heard */
     duck(ms) {
       if (!el) return;
-      el.volume = VOL * 0.2; clearTimeout(duckT);
-      duckT = setTimeout(() => { el.volume = VOL; }, ms);
+      clearTimeout(duckT);
+      el.volume = VOL * 0.2;
+      // iPhone ignores volume set from a page: pause the music for the moment instead, then carry on
+      const fixedVolume = Math.abs(el.volume - VOL * 0.2) > 0.01;
+      if (fixedVolume && !el.paused) { ducked = true; save(); el.pause(); }
+      duckT = setTimeout(() => { el.volume = VOL; if (ducked) { ducked = false; sync(); } }, ms);
     },
   };
 })();
