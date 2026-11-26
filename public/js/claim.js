@@ -108,8 +108,10 @@ async function saveImage(card) {
   const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
   const name = `บัตรโหวต-${card.code}.png`;
   const file = new File([blob], name, { type: 'image/png' });
-  // phones: the share sheet has "Save Image"; elsewhere: a normal download
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  // iPhone: the share sheet has "Save Image" (a download would land in Files); Android and computers: a normal
+  // download, because Android's share sheet usually has no "save to gallery"
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios && navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title: 'บัตรโหวต' }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   const a = document.createElement('a');
