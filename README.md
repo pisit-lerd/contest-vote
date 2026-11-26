@@ -203,9 +203,7 @@ silent. A page opened after the deadline passed does not sound.
 
 ### Sounds
 
-The clips are not in the repository (they may be copyrighted, and the repository is public). Put these three MP3
-files in `public/sounds/` on each machine that runs the app, before `docker compose up -d --build` (the image takes
-them from there):
+Three MP3 clips in `public/sounds/` come with the repository and go into the Docker image:
 
 | File | Plays |
 |---|---|
@@ -213,8 +211,9 @@ them from there):
 | `iron-chep.mp3` | one minute before a topic closes |
 | `time-up.mp3` | after the time's-up buzzer |
 
-Without them the pages stay silent where the clip would play (the buzzer and the "หมดเวลา!" stamp still work).
-Copy them to a server with, for example, `scp public/sounds/*.mp3 user@server:~/contest-vote/public/sounds/`.
+Replace a file (same name) to change a sound. They are short clips from games and memes; the repository is public,
+so anyone can download them. Without a file the pages stay silent where it would play (the buzzer and the
+"หมดเวลา!" stamp still work).
 
 ## Photo booth and costume entries
 
