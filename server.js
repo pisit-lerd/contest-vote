@@ -71,7 +71,8 @@ const TRUST_PROXY = parseTrustProxy(process.env.TRUST_PROXY);
 
 function emptyDb() {
   return {
-    event: { name: 'งานเลี้ยงปีใหม่', accessMode: 'code', publicUrl: '', entriesOpen: false },
+    // entriesAuto: guest costume entries join entriesTopicId straight away (no approval step)
+    event: { name: 'งานเลี้ยงปีใหม่', accessMode: 'code', publicUrl: '', entriesOpen: false, entriesAuto: true, entriesTopicId: null },
     screen: { topicId: null, mode: 'hidden', revealStep: 0, introIndex: 0 }, // mode: hidden | intro | live | reveal
     topics: [],
     voters: {},   // id -> { id, kind, key, label, createdAt }   (name mode: key = "r:<rosterId>")
@@ -815,7 +816,7 @@ function voterState() {
     cheer: { open: cheerOpen(), emoji: db.cheer.emoji, text: db.cheer.text, set: CHEER_EMOJI },
     voteUrl: voteUrl(),
     booth: { drive: !!GDRIVE },
-    entries: { open: !!db.event.entriesOpen },
+    entries: { open: !!db.event.entriesOpen, auto: !!entriesAutoTopic() },
     topics: db.topics
       .filter((t) => t.status !== 'draft')
       .map((t) => ({ id: t.id, title: t.title, maxVotes: t.maxVotes, status: t.status, contestants: t.contestants.map(pub) })),
@@ -1319,6 +1320,23 @@ app.post('/api/booth', async (req, res) => {
   } finally { driveBusy--; }
 });
 
+/** the topic guest entries join at once, or null when they wait for the admin (manual mode, or no topic picked) */
+function entriesAutoTopic() {
+  if (db.event.entriesAuto === false || !db.event.entriesTopicId) return null;
+  return findTopic(db.event.entriesTopicId) || null;
+}
+/** adds an entry to a topic as the next number; its photo becomes the contestant's photo */
+function entryToContestant(e, topic) {
+  const top = topic.contestants.reduce((m, c) => Math.max(m, parseInt(c.number, 10) || 0), 0);
+  let n = top + 1;
+  while (topic.contestants.some((c) => c.number === String(n))) n++;
+  const c = { id: newId('c'), number: String(n), name: `${e.name} (${e.dept}) · ${e.concept}`.slice(0, 120), photo: e.photo };
+  topic.contestants.push(c);
+  topic.contestants.sort((a, b) => a.number.localeCompare(b.number, 'th', { numeric: true }));
+  Object.assign(e, { status: 'approved', topicId: topic.id, contestantId: c.id });
+  return c;
+}
+
 app.post('/api/entries', (req, res) => {
   const v = voterFromReq(req);
   if (!v) return fail(res, 401, 'กรุณาลงชื่อเข้างานก่อน');
@@ -1337,6 +1355,8 @@ app.post('/api/entries', (req, res) => {
   if (p.error) return fail(res, 400, p.error);
   const e = { id: newId('e'), voterId: v.id, name, dept, concept, photo: p.url, status: 'pending', createdAt: new Date().toISOString() };
   db.entries.push(e);
+  const auto = entriesAutoTopic();
+  if (auto) entryToContestant(e, auto); // "ขึ้นทันที": straight onto the voting page and Live Score
   changed();
   // a copy for the same Drive folder as the booth pictures; a Drive hiccup never blocks the entry
   if (GDRIVE) {
@@ -1398,6 +1418,12 @@ app.put('/api/admin/event', (req, res) => {
     db.event.publicUrl = u;
   }
   if (b.entriesOpen !== undefined) db.event.entriesOpen = b.entriesOpen === true;
+  if (b.entriesAuto !== undefined) db.event.entriesAuto = b.entriesAuto === true;
+  if (b.entriesTopicId !== undefined) {
+    const id = b.entriesTopicId === null || b.entriesTopicId === '' ? null : String(b.entriesTopicId);
+    if (id && !findTopic(id)) return fail(res, 400, 'ไม่พบหัวข้อนี้');
+    db.event.entriesTopicId = id;
+  }
   if (b.accessMode !== undefined && b.accessMode !== db.event.accessMode) {
     if (!ACCESS_MODES.includes(b.accessMode)) return fail(res, 400, 'รูปแบบการเข้าโหวตไม่ถูกต้อง');
     if (totalBallots() > 0) return fail(res, 409, 'มีคนโหวตแล้ว เปลี่ยนรูปแบบการเข้าไม่ได้ ต้องล้างผลโหวตทั้งหมดก่อน');
@@ -1834,13 +1860,7 @@ app.post('/api/admin/entries/:id/approve', (req, res) => {
   if (!e) return;
   const topic = findTopic(String(req.body?.topicId || ''));
   if (!topic) return fail(res, 400, 'เลือกหัวข้อที่จะเพิ่มผู้เข้าประกวด');
-  const top = topic.contestants.reduce((m, c) => Math.max(m, parseInt(c.number, 10) || 0), 0);
-  let n = top + 1;
-  while (topic.contestants.some((c) => c.number === String(n))) n++;
-  const c = { id: newId('c'), number: String(n), name: `${e.name} (${e.dept}) · ${e.concept}`.slice(0, 120), photo: e.photo };
-  topic.contestants.push(c);
-  topic.contestants.sort((a, b) => a.number.localeCompare(b.number, 'th', { numeric: true }));
-  Object.assign(e, { status: 'approved', topicId: topic.id, contestantId: c.id });
+  entryToContestant(e, topic);
   changed();
   res.json(adminState());
 });

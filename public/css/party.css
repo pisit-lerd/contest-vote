@@ -1397,3 +1397,8 @@ body.host-open .booth-hero .gear-btn{background:#FFF8F0;color:#A8461B;border-col
 .ab-ic.save{background:linear-gradient(145deg,#F0995E,#B24A1A);box-shadow:0 10px 18px -8px rgba(178,74,26,.7),inset 0 -3px 0 rgba(0,0,0,.12),inset 0 2px 0 rgba(255,255,255,.35)}
 .ab-ic.retake{background:linear-gradient(145deg,#F2C67A,#D9962E);box-shadow:0 10px 18px -8px rgba(217,150,46,.7),inset 0 -3px 0 rgba(0,0,0,.12),inset 0 2px 0 rgba(255,255,255,.35)}
 .ab-ic.home{background:linear-gradient(145deg,#8A6A58,#4A3024);box-shadow:0 10px 18px -8px rgba(74,48,36,.7),inset 0 -3px 0 rgba(0,0,0,.12),inset 0 2px 0 rgba(255,255,255,.35)}
+
+/* costume entry: pick a photo from the library instead of shooting */
+.pick-photo{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px 18px;border-radius:999px;border:2px solid #B24A1A;background:#fff;color:#9E3F16;font:500 17px/1.2 Mitr,Anuphan,sans-serif;cursor:pointer}
+.pick-photo svg{width:22px;height:22px;flex:none}
+.pick-photo:hover{background:#FCE3D0}

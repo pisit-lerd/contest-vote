@@ -1,6 +1,6 @@
 'use strict';
 // Party landing + photo page: home (curtain hero) → photo booth (frame, layout, count → shoot → save)
-// or costume entry (shoot → review → name/department/concept → sent for the admin to approve).
+// or costume entry (shoot → review → name/department/concept → straight into the contest, or to the admin to approve).
 // Ported from the "Staff Party" design. Voting itself stays on /vote; this page shares its session token.
 (() => {
 const F = window.Frames;
@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const P = {
   pub: null, token: localStorage.getItem(TOKEN_KEY), me: null,
   screen: 'home', mode: 'booth', frame: 'beneat', n: 3, shape: 'strip',
-  cName: '', cDept: '', cConcept: '', contestShot: null, submitting: false,
+  cName: '', cDept: '', cConcept: '', contestShot: null, contestFrom: 'camera', submitting: false,
 };
 const authHeaders = () => (P.token ? { 'X-Voter-Token': P.token } : {});
 
@@ -158,7 +158,11 @@ function renderContestSetup() {
   drawAll();
 }
 function renderContestForm() {
-  renderFlow($('#formFlow'), FLOW_CONTEST, 2);
+  renderFlow($('#formFlow'), flowContest(), 2);
+  const fr = $('#formRetake');
+  fr.querySelector('b').textContent = P.contestFrom === 'gallery' ? 'เลือกรูปอื่น' : 'ถ่ายใหม่';
+  fr.querySelector('small').textContent = P.contestFrom === 'gallery' ? 'เปิดคลังภาพอีกครั้ง' : 'นับถอยหลัง 5 วินาที แล้วถ่ายอีกครั้ง';
+  $('#formNote').textContent = autoEntries() ? 'กดส่งแล้วรูปจะขึ้นหน้าโหวตและ Live Score ทันที' : 'รูปจะไปรอให้แอดมินตรวจก่อน ผ่านแล้วจึงขึ้นให้โหวต';
   for (const [id, k] of [['#fName', 'cName'], ['#fDept', 'cDept'], ['#fConcept', 'cConcept']]) { const el = $(id); if (el.value !== P[k]) el.value = P[k]; }
   $('#submitContest').disabled = !(P.cName.trim() && P.cDept.trim() && P.cConcept.trim()) || P.submitting;
   drawAll();
@@ -323,11 +327,13 @@ function cancelShoot() {
 async function finishShoot() {
   $('#shootLbl').textContent = ''; $('#shootNum').textContent = ''; await sleep(350);
   stopCamera(); closeShoot(); SH.active = false;
-  if (SH.mode === 'contest') reviewContest(); else saveBoothResult();
+  if (SH.mode === 'contest') reviewContest(SH.shots[0], 'camera'); else saveBoothResult();
 }
 
 /* ---------- result: step flow on top, then the next actions ---------- */
-const FLOW_CONTEST = ['ถ่ายรูป', 'ตรวจรูป', 'กรอกข้อมูล', 'รอแอดมินตรวจ'];
+// last step follows the admin's choice: entries join the contest at once, or wait for approval
+const autoEntries = () => !!P.pub?.entries.auto;
+const flowContest = () => [P.contestFrom === 'gallery' ? 'เลือกรูป' : 'ถ่ายรูป', 'ตรวจรูป', 'กรอกข้อมูล', autoEntries() ? 'ขึ้น Live Score' : 'รอแอดมินตรวจ'];
 const flowBooth = () => ['เลือกกรอบ', 'ถ่ายรูป', P.pub?.booth.drive ? 'บันทึกไป Google Drive' : 'บันทึกรูป'];
 function renderFlow(el, steps, cur) {
   el.innerHTML = steps.map((s, i) => `<li class="${i < cur ? 'done' : i === cur ? 'cur' : ''}"><span class="fn">${i < cur ? '✓' : i + 1}</span><span class="ft"></span></li>`).join('');
@@ -405,16 +411,33 @@ function saveBoothResult() {
 }
 
 /* costume entry: review → fill in → sent to the admin's waiting list */
-function reviewContest() {
-  P.contestShot = SH.shots[0];
+/* costume photo from the library: a picture taken earlier works too (the frame crops it to fit) */
+function pickContestPhoto() {
+  if (contestBlock()) return renderContestSetup();
+  const f = $('#pickFile'); f.value = ''; f.click();
+}
+$('#pickFile').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const { img } = await F.fileToPhoto(file);
+    reviewContest(img, 'gallery');
+  } catch { say('เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น'); }
+});
+const retakeContest = () => { if (P.contestFrom === 'gallery') pickContestPhoto(); else { goScreen('contest'); startShoot(); } };
+
+function reviewContest(shot, from) {
+  P.contestShot = shot; P.contestFrom = from;
+  const gallery = from === 'gallery';
   const c = F.compose(0.6, F.CONTEST_FRAME, [P.contestShot], '', 1, 'strip');
   showResult({
     src: c.toDataURL('image/jpeg', 0.88), kicker: 'ส่งประกวดชุด', title: 'ชอบรูปนี้ไหม?',
-    text: 'ถ้าชอบ กดใช้รูปนี้แล้วกรอกข้อมูล รูปจะไปรอแอดมินตรวจก่อนขึ้นให้โหวต',
-    flow: FLOW_CONTEST, step: 1,
+    text: autoEntries() ? 'ถ้าชอบ กดใช้รูปนี้แล้วกรอกข้อมูล รูปจะขึ้น Live Score ทันที' : 'ถ้าชอบ กดใช้รูปนี้แล้วกรอกข้อมูล รูปจะไปรอแอดมินตรวจก่อนขึ้นให้โหวต',
+    flow: flowContest(), step: 1,
     actions: [
       { label: 'ใช้รูปนี้', sub: 'ถัดไป: กรอกชื่อ แผนก และ Concept', icon: 'save', kind: 'main', fn: () => goScreen('cform') },
-      { label: 'ถ่ายใหม่', sub: 'ถ่ายรูปประกวดอีกครั้ง', icon: 'retake', fn: () => { goScreen('contest'); startShoot(); } },
+      gallery ? { label: 'เลือกรูปอื่น', sub: 'เปิดคลังภาพอีกครั้ง', icon: 'retake', fn: pickContestPhoto }
+        : { label: 'ถ่ายใหม่', sub: 'ถ่ายรูปประกวดอีกครั้ง', icon: 'retake', fn: () => { goScreen('contest'); startShoot(); } },
       { label: 'กลับหน้าแรก', sub: 'ยกเลิกรูปนี้', icon: 'home', kind: 'ghost', fn: goHome },
     ],
   });
@@ -427,14 +450,15 @@ async function submitContest() {
   const shot = P.contestShot;
   const photo = F.smallDataURL(F.compose(720 / 1080, F.CONTEST_FRAME, [shot], contestCaption(), 1, 'strip'));
   try {
-    await api('POST', '/api/entries', { name, dept, concept, photo }, authHeaders());
+    const r = await api('POST', '/api/entries', { name, dept, concept, photo }, authHeaders());
+    const live = r.entry && r.entry.status === 'approved';
     const doneSrc = F.compose(0.6, F.CONTEST_FRAME, [shot], contestCaption(), 1, 'strip').toDataURL('image/jpeg', 0.88);
     P.contestShot = null; P.cName = P.cDept = P.cConcept = '';
     loadMe();
     showResult({
       src: doneSrc, kicker: 'ส่งประกวดชุด', title: 'ส่งประกวดเรียบร้อย!',
-      text: `รูปของ ${name} ไปรอแอดมินตรวจแล้ว ผ่านแล้วจะขึ้นให้โหวต ขอให้โชคดี 🍀`,
-      flow: FLOW_CONTEST, step: FLOW_CONTEST.length,
+      text: live ? `รูปของ ${name} ขึ้น Live Score แล้ว ขอให้โชคดี 🍀` : `รูปของ ${name} ไปรอแอดมินตรวจแล้ว ผ่านแล้วจะขึ้นให้โหวต ขอให้โชคดี 🍀`,
+      flow: flowContest(), step: 4,
       actions: [{ label: 'กลับหน้าแรก', sub: 'ถ่ายรูปต่อหรือไปโหวต', icon: 'home', kind: 'main', fn: goHome }],
     });
   } catch (e) {
@@ -448,8 +472,7 @@ async function submitContest() {
 
 /* ---------- hero buttons: a small press animation, then go ---------- */
 function navTo(where) {
-  goScreen(where);
-  if (where === 'contest' && !contestBlock()) startShoot();
+  goScreen(where); // contest: the guest chooses there between the camera and a photo from the library
 }
 function bindCamButtons() {
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -477,7 +500,8 @@ function bind() {
     $(id).addEventListener('input', (e) => { P[k] = e.target.value; renderContestForm(); });
   }
   $('#submitContest').addEventListener('click', submitContest);
-  $('#formRetake').addEventListener('click', () => { goScreen('contest'); startShoot(); });
+  $('#formRetake').addEventListener('click', retakeContest);
+  $('#pickContest').addEventListener('click', pickContestPhoto);
   let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(refitStage, 120); });
 }
 

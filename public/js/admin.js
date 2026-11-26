@@ -221,14 +221,21 @@ function entriesCard() {
   const st = A.st, es = st.entries || [], on = !!st.event.entriesOpen;
   const pending = es.filter((e) => e.status === 'pending');
   const topics = st.topics;
-  const topicOpts = topics.map((t) => `<option value="${t.id}"${t.id === A.entryTopic ? ' selected' : ''}>${esc(t.title)}</option>`).join('');
+  const auto = st.event.entriesAuto !== false;
+  const target = topics.find((t) => t.id === st.event.entriesTopicId) || null;
+  const pick = A.entryTopic || target?.id;
+  const topicOpts = topics.map((t) => `<option value="${t.id}"${t.id === pick ? ' selected' : ''}>${esc(t.title)}</option>`).join('');
+  const targetOpts = `<option value="">— เลือกหัวข้อ —</option>` + topics.map((t) => `<option value="${t.id}"${t.id === target?.id ? ' selected' : ''}>${esc(t.title)}</option>`).join('');
+  const where = !target ? '' : target.status === 'open' ? 'หน้าโหวตและ Live Score (เมื่อเลือกหัวข้อนี้ขึ้นจอใหญ่)'
+    : target.status === 'closed' ? 'หัวข้อนี้ปิดโหวตแล้ว เปิดโหวตอีกครั้งก่อนเพื่อให้แขกเห็น'
+      : 'หัวข้อนี้ยังไม่เปิดโหวต แขกจะยังไม่เห็นจนกว่าจะเปิดโหวต หรือเลือกขึ้นจอใหญ่ช่วงแนะนำตัว';
   const row = (e) => {
     const [cls, label] = ENTRY_BADGE[e.status] || ['badge-closed', e.status];
-    const where = e.status === 'approved' ? (topics.find((t) => t.id === e.topicId)?.title || '') : '';
+    const inTopic = e.status === 'approved' ? (topics.find((t) => t.id === e.topicId)?.title || '') : '';
     const acts = e.status === 'pending'
       ? `<div class="row">${topics.length ? `<button class="btn btn-primary btn-sm" data-act="entry-ok" data-id="${e.id}">${icon('check')}อนุมัติ</button>` : ''}
           <button class="btn btn-danger btn-sm" data-act="entry-no" data-id="${e.id}">ไม่อนุมัติ</button></div>`
-      : `<span class="muted small">${where ? 'อยู่ใน ' + esc(where) : ''}</span>`;
+      : `<span class="muted small">${inTopic ? 'อยู่ใน ' + esc(inTopic) + ' (ลบได้ที่รายชื่อผู้เข้าประกวดของหัวข้อ)' : ''}</span>`;
     return `<li class="entry-row">
       ${e.photo ? `<a href="${esc(e.photo)}" target="_blank" rel="noopener">${photoHtml({ photo: e.photo, number: '?' }, 72)}</a>` : photoHtml({ number: '–' }, 72)}
       <div class="entry-t"><b>${esc(e.name)}</b> <span class="muted">· ${esc(e.dept)}</span><br><span>${esc(e.concept)}</span><br>
@@ -240,10 +247,23 @@ function entriesCard() {
     <div class="row"><h2>รูปประกวดชุดจากแขก</h2><span class="spacer"></span>
       <button class="btn btn-sm ${on ? '' : 'btn-primary'}" data-act="entries-open" data-to="${on ? '0' : '1'}">${on ? 'ปิดรับรูป' : 'เปิดรับรูป'}</button></div>
     <p class="hint">${on
-      ? 'เปิดรับอยู่: แขกที่ลงชื่อแล้วกด “ส่งประกวดชุด” ที่หน้าแรก ถ่ายรูปและกรอกชื่อ แผนก Concept รูปจะมารอที่นี่ อนุมัติแล้วจึงขึ้นเป็นผู้เข้าประกวดในหัวข้อที่เลือก'
+      ? 'เปิดรับอยู่: แขกที่ลงชื่อแล้วกด “ส่งประกวดชุด” ที่หน้าแรก ถ่ายรูปและกรอกชื่อ แผนก Concept'
       : 'ปิดอยู่: ปุ่ม “ส่งประกวดชุด” ที่หน้าแรกจะบอกแขกว่ายังไม่เปิดรับ'}
       ${driveNote(st.drive)}</p>
     ${errBanner('entries')}
+    <div class="grid-2">
+      <div class="field"><label for="entries-topic">รูปจากแขกเข้าหัวข้อ</label>
+        ${topics.length ? `<select id="entries-topic" class="input">${targetOpts}</select>` : '<p class="hint">สร้างหัวข้อประกวดก่อน</p>'}</div>
+      <div class="field"><span class="label">เมื่อแขกส่งรูป</span>
+        <div class="row">
+          <button class="btn btn-sm ${auto ? 'btn-primary' : ''}" data-act="entries-auto" data-to="1" aria-pressed="${auto}">ขึ้นทันที</button>
+          <button class="btn btn-sm ${auto ? '' : 'btn-primary'}" data-act="entries-auto" data-to="0" aria-pressed="${!auto}">รอแอดมินอนุมัติ</button>
+        </div></div>
+    </div>
+    <p class="hint">${auto
+      ? (target ? `ส่งแล้วขึ้นเป็นผู้เข้าประกวดใน “${esc(target.title)}” ทันที: ${where} · รูปไม่เหมาะสมลบได้ที่รายชื่อผู้เข้าประกวดของหัวข้อ`
+        : 'เลือกหัวข้อก่อน ระหว่างนี้รูปจะมารอให้อนุมัติที่นี่')
+      : 'รูปจะมารอที่นี่ อนุมัติแล้วจึงขึ้นเป็นผู้เข้าประกวดในหัวข้อที่เลือก'}</p>
     ${pending.length ? `<div class="field"><label for="entry-topic">อนุมัติเข้าหัวข้อ</label>
       ${topics.length ? `<select id="entry-topic" class="input">${topicOpts}</select>` : '<p class="hint">สร้างหัวข้อประกวดก่อน จึงจะอนุมัติได้</p>'}</div>` : ''}
     ${es.length ? `<ul class="entry-list">${es.map(row).join('')}</ul>
@@ -672,6 +692,8 @@ function bind(main) {
     if (ask && !(await confirmDialog({ ...ask, cancelLabel: 'ไม่เปลี่ยน', danger: false }))) return renderMain();
     act(r, 'mode', () => api('PUT', '/api/admin/event', { accessMode: r.value }), 'เปลี่ยนวิธีเข้าโหวตแล้ว');
   }));
+  const target = main.querySelector('#entries-topic');
+  if (target) target.addEventListener('change', () => act(target, 'entries', () => api('PUT', '/api/admin/event', { entriesTopicId: target.value || null }), 'บันทึกหัวข้อแล้ว'));
   const et = main.querySelector('#entry-topic');
   if (et) et.addEventListener('change', () => { A.entryTopic = et.value; });
   const ta = main.querySelector('#roster');
@@ -842,6 +864,9 @@ async function onAct(e) {
       break;
     }
     case 'hide-setup': localStorage.setItem(SETUP_HIDDEN_KEY, '1'); renderMain(); break;
+    case 'entries-auto':
+      act(b, 'entries', () => api('PUT', '/api/admin/event', { entriesAuto: b.dataset.to === '1' }), b.dataset.to === '1' ? 'รูปจากแขกจะขึ้นทันที' : 'รูปจากแขกจะรอให้อนุมัติก่อน');
+      break;
     case 'entries-open':
       act(b, 'entries', () => api('PUT', '/api/admin/event', { entriesOpen: b.dataset.to === '1' }), b.dataset.to === '1' ? 'เปิดรับรูปประกวดแล้ว' : 'ปิดรับรูปประกวดแล้ว');
       break;
