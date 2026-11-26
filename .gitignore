@@ -2,5 +2,6 @@ node_modules
 data
 .env
 gdrive-key.json
+secrets/
 # the original clips folder (only the three in public/sounds/ are used and committed)
 /sounds/

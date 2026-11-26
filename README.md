@@ -269,9 +269,9 @@ pictures; it has no storage of its own, so the folder must be on a **Shared Driv
    **Contributor**. Make a folder for the pictures if you like and copy its ID from the link
    (`drive.google.com/drive/folders/<ID>`). If Shared drives is missing, or the email cannot be added (it is outside
    your company), a Workspace admin allows it in https://admin.google.com → **Apps → Google Workspace → Drive and Docs**.
-4. Put the key next to `.env` as `gdrive-key.json` and add to `.env`:
+4. Put the key in a `secrets` folder next to `.env` as `secrets/gdrive-key.json` and add to `.env`:
    ```
-   GDRIVE_KEY_FILE=./gdrive-key.json
+   GDRIVE_KEY_FILE=./secrets/gdrive-key.json
    GDRIVE_FOLDER_ID=<ID>
    ```
    Restart. The console prints `Google Drive พร้อม: …` with the folder name, or what is wrong; the admin page shows
@@ -279,9 +279,13 @@ pictures; it has no storage of its own, so the folder must be on a **Shared Driv
    `contest/` (costume photos) apart, making them on first start if they are not there yet.
 
 - The key works like a password for that Shared Drive: never commit it or send it in chat (`.gitignore` and
-  `.dockerignore` already leave out `gdrive-key.json`). Delete the key in the Cloud Console after the event.
-- Docker: mount the file, for example `- ./gdrive-key.json:/app/gdrive-key.json:ro` under `volumes`, set
-  `GDRIVE_KEY_FILE=/app/gdrive-key.json`, and on Linux `chmod 644 gdrive-key.json` (the app runs as `node`).
+  `.dockerignore` already leave out `secrets/` and `gdrive-key.json`). Delete the key in the Cloud Console after the
+  event.
+- Docker: the key is never copied into the image. `compose.yaml` mounts `./secrets` at `/app/secrets` (read-only), so
+  the same `GDRIVE_KEY_FILE=./secrets/gdrive-key.json` works with `npm start` and in the container. On Linux run
+  `chmod 755 secrets && chmod 644 secrets/gdrive-key.json`, because the app runs as the `node` user (uid 1000), not as
+  you. Create the folder yourself (`mkdir -p secrets`); otherwise Docker creates an empty one owned by root.
+  A key at the old place (`./gdrive-key.json`, next to `.env`) still works with `npm start` but is not seen by Docker.
 - The server must reach `oauth2.googleapis.com` and `www.googleapis.com`. "Saved" means Drive accepted the file.
 
 ## Registration desk
