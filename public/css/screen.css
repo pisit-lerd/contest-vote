@@ -357,9 +357,10 @@ body.stage {
   body.stage { overflow: auto; height: auto; min-height: 100vh; } /* the page scrolls instead of cutting rows off */
   body.stage .stage-in { height: auto; min-height: 100vh; }
   body.stage .rank { flex: none; min-height: 88vh; }
-  body.stage .home-btn { padding: 4px 12px; font-size: 13px; }
+  /* the corner buttons sit under the page instead of floating over cards while it scrolls */
+  body.stage .home-btn { padding: 4px 12px; font-size: 13px; position: relative; left: auto; bottom: auto; display: inline-block; margin: 2vh 0 3vh 3vw; vertical-align: middle; }
   body.stage .fs-btn { display: none; }
-  body.stage .snd-btn { width: 34px; height: 34px; bottom: 1vw; }
+  body.stage .snd-btn { width: 34px; height: 34px; position: relative; right: auto; bottom: auto; display: inline-grid; margin: 2vh 0 3vh 12px; vertical-align: middle; opacity: 1; }
   body.stage .snd-btn svg { width: 17px; height: 17px; }
   body.stage .hype-hint { font-size: 13px; padding: 6px 12px; }
 }
@@ -397,4 +398,68 @@ body.stage {
 .c-grid { padding: 1.6vw; margin: -1.6vw; }
 /* hidden scores with 1–3 contestants: bigger boxes instead of small ones lost in an empty screen */
 .c-grid.few { grid-template-columns: repeat(var(--n), minmax(0, 21vw)); }
+/* projector and laptop: the boxes share exactly the height left under the header and counter (rows split it, the
+   photo takes what the name does not), so whole cards with their names always show, on 16:9 and on short windows.
+   Each row stops at about a portrait card's height so boxes don't turn into tall strips on tall screens. */
+@media (orientation: landscape) and (min-height: 501px), (min-width: 821px) and (min-height: 501px) {
+  .c-grid { flex: 1 1 auto; min-height: 0; grid-auto-rows: minmax(0, 1fr); max-height: calc(var(--rows, 1) * var(--cap, 30vw)); }
+  .c-grid .c-card { min-height: 0; grid-template-rows: minmax(0, 1fr) auto; }
+  .c-grid .c-card .ph, .c-grid .c-card .photo-ph { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; object-fit: cover; }
+  /* on short windows the QR panel and the voter count follow the height too, so they don't push the row off screen */
+  .qr-panel img { width: min(17vw, 36vh); height: min(17vw, 36vh); }
+  .qr-panel .url { max-width: min(17vw, 36vh); }
+  .counter .n { font-size: min(9vw, 17vh); }
+}
 .c-grid.few .nm { font-size: 1.6vw; }
+
+/* ---------- short and wide windows (e.g. a browser window that isn't full screen on the projector laptop) ----------
+   Sizes that followed only the width (vw) now also follow the height (vh), so the page that cannot scroll keeps its
+   content inside the screen: the lobby's long event name and how-to, the intro without a photo, the ranking badges. */
+@media (orientation: landscape), (min-width: 821px) {
+  /* room at the bottom for the corner buttons (หน้าแรก, เต็มจอ, speaker) so they don't sit on a photo or card */
+  body.stage .stage-in { padding-bottom: max(3vh, 52px); }
+  .lobby { min-height: 0; overflow: hidden; }
+  .lobby > div { min-height: 0; max-height: 100%; overflow: auto; scrollbar-width: none; }
+  .lobby .qr-big { width: min(38vh, 30vw); height: min(38vh, 30vw); }
+  .lobby h1 { font-size: min(5vw, 7.2vh); }
+  .lobby .scan { font-size: min(2.4vw, 4vh); }
+  .lobby .url { font-size: min(1.4vw, 2.5vh); }
+  .lobby ul { margin-top: min(3vh, 2vw); }
+  .lobby li { font-size: min(1.5vw, 2.7vh); }
+  .howto { margin-top: min(3.5vh, 2.4vw); padding: min(2.2vh, 1.6vw) 2vw; }
+  .howto h2 { font-size: min(2.4vw, 4vh); }
+  .howto-sub { font-size: min(1.4vw, 2.5vh); }
+  .howto ol { font-size: min(1.6vw, 2.8vh); margin-top: min(1.6vh, 1.2vw); }
+  /* with the costume how-to under it the lobby has more to fit: everything a step smaller, the name at most 3 lines */
+  .lobby.has-howto .qr-big { width: min(34vh, 26vw); height: min(34vh, 26vw); }
+  .lobby.has-howto h1 { font-size: min(3.8vw, 5.4vh); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+  .lobby.has-howto .scan { font-size: min(2vw, 3.4vh); }
+  .lobby.has-howto li { font-size: min(1.3vw, 2.3vh); }
+  .lobby.has-howto .howto h2 { font-size: min(2vw, 3.3vh); }
+  .lobby.has-howto .howto-sub { font-size: min(1.2vw, 2.1vh); }
+  .lobby.has-howto .howto ol { font-size: min(1.35vw, 2.35vh); gap: min(.9vh, .6vw); }
+  .i-lbl { font-size: min(1.8vw, 3.2vh); }
+  .i-no { font-size: min(15vw, 30vh); }
+  .no-photo .i-no { font-size: min(26vw, 36vh); }
+  .i-name { font-size: min(3.4vw, 6vh); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .i-info { min-height: 0; overflow: hidden; }
+  .rk-badge { left: min(.8vw, 1.4vh); top: min(.8vw, 1.4vh); min-width: min(3.4vw, 6vh); height: min(3.4vw, 6vh); font-size: min(2vw, 3.4vh); }
+  .rk-1 .rk-badge { min-width: min(5vw, 9vh); height: min(5vw, 9vh); font-size: min(3vw, 5.2vh); }
+  .rk-photo { min-height: calc(min(3.4vw, 6vh) + 2 * min(.8vw, 1.4vh) + 2px); } /* never shorter than its badge */
+  /* list rows never shrink below a readable height; rows that don't fit are hidden and counted ("+N") by screen.js */
+  .rk-list { grid-template-rows: repeat(var(--rows, 1), minmax(30px, 7.5vh)); }
+  .rk-list .rk-pos { font-size: min(1.5vw, 2.6vh); }
+  .rk-list .nm { font-size: min(1.15vw, 2.3vh); }
+  .rk-list .v { font-size: min(1.6vw, 2.8vh); }
+  .rk-list.two .nm { font-size: min(.95vw, 2.1vh); }
+  .rk-list.two .v { font-size: min(1.3vw, 2.5vh); }
+  .rk-list li { padding-top: min(.5vh, .4vw); padding-bottom: min(.5vh, .4vw); }
+  .rk-list li > * { line-height: 1.25; }
+  /* a box without a photo: its big number stays inside the box when rows get short */
+  .c-grid .c-card .photo-ph { overflow: hidden; display: grid; place-items: center; font-size: min(4vw, 7vh); }
+  .rk-list li.rk-more { display: block; text-align: center; font-weight: 700; font-size: min(1.15vw, 2.2vh); color: var(--stage-muted); padding: .5vh .7vw; }
+}
+/* phones held upright: the big screen's speaker sits under the page next to "หน้าแรก" instead of floating over cards */
+@media (orientation: portrait) and (max-width: 820px) {
+  body.stage .snd-btn { position: relative; right: auto; bottom: auto; display: grid; margin: -2vh auto 5vh; opacity: 1; }
+}

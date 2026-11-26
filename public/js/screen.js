@@ -236,7 +236,7 @@ function header(topic) {
 
 function lobby() {
   const open = state.topics.filter((t) => t.status === 'open');
-  return `<div class="lobby">
+  return `<div class="lobby${state.entries?.open ? ' has-howto' : ''}">
     <img class="qr-big" src="${qrSrc()}" alt="QR สำหรับเข้าโหวต">
     <div><h1>${esc(state.event.name)}</h1>
       <p class="scan">สแกน QR เพื่อเข้าร่วม</p><p class="url">${esc(state.voteUrl)}</p>
@@ -261,7 +261,7 @@ function entryHowTo() {
 function hidden(topic) {
   return header(topic) + `<div class="s-body"><div class="s-main">
     <div class="counter"><span class="n" id="voters">0</span><span class="t">คนโหวตแล้ว</span></div>
-    ${topic.contestants.length ? `<div class="c-grid${topic.contestants.length <= 3 ? ' few' : ''}" style="--cols:${gridCols(topic.contestants.length)};--n:${topic.contestants.length}">${topic.contestants.map((c) => `<div class="c-card">
+    ${topic.contestants.length ? `<div class="c-grid${topic.contestants.length <= 3 ? ' few' : ''}" style="--cols:${gridCols(topic.contestants.length)};--n:${topic.contestants.length};--rows:${Math.ceil(topic.contestants.length / (topic.contestants.length <= 3 ? topic.contestants.length : gridCols(topic.contestants.length)))};--cap:${topic.contestants.length <= 3 ? '29vw' : `calc(92vw / ${gridCols(topic.contestants.length)})`}">${topic.contestants.map((c) => `<div class="c-card">
       ${c.photo ? `<img class="ph" src="${esc(c.photo)}" alt="">` : `<div class="photo-ph">${esc(c.number)}</div>`}
       <span class="nm"><span class="no">${esc(c.number)}</span> ${esc(c.name)}</span></div>`).join('')}</div>` : '<p class="empty-stage">ยังไม่มีผู้เข้าประกวด</p>'}
     </div>${qrPanel()}</div>`;
@@ -355,12 +355,36 @@ function patch(topic, s) {
       const before = rankSig ? JSON.parse(rankSig) : null;
       rankSig = next;
       rank.innerHTML = rankHtml(topic, s.counts, s.voters);
+      fitRankList();
       lastVoters = s.voters;
       // whoever just got a vote pulses once
       if (before) for (const el of rank.querySelectorAll('[data-id]')) if ((s.counts[el.dataset.id] || 0) > (before[el.dataset.id] || 0)) el.classList.add('got');
     }
   }
 }
+
+// the ranking list on a screen that cannot scroll: rows keep a readable height; when more rows are needed than fit,
+// the lowest ones are hidden and a "+N คน" line says how many (phones scroll instead, their list is overflow:visible)
+function fitRankList() {
+  const ol = document.querySelector('.rk-list');
+  if (!ol || getComputedStyle(ol).overflowY === 'visible') return;
+  ol.querySelector('.rk-more')?.remove();
+  const items = [...ol.querySelectorAll('li')];
+  items.forEach((li) => { li.style.display = ''; });
+  if (!items.length) return;
+  const cols = ol.classList.contains('two') ? 2 : 1, need = Math.ceil(items.length / cols);
+  ol.style.setProperty('--rows', need);
+  const gap = parseFloat(getComputedStyle(ol).rowGap) || 0, rowH = items[0].getBoundingClientRect().height;
+  const fit = Math.max(1, Math.floor((ol.clientHeight + gap) / (rowH + gap)));
+  if (fit >= need) return;
+  ol.style.setProperty('--rows', fit);
+  const show = fit * cols - 1;
+  items.forEach((li, i) => { if (i >= show) li.style.display = 'none'; });
+  const more = document.createElement('li'); more.className = 'rk-more'; more.textContent = `+${items.length - show} คน`;
+  ol.append(more);
+}
+let fitT = null;
+window.addEventListener('resize', () => { clearTimeout(fitT); fitT = setTimeout(fitRankList, 150); });
 
 function confetti() {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
