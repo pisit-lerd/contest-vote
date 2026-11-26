@@ -389,17 +389,40 @@ const goHome = () => goScreen('home');
 /* booth sheet: kept on the phone (download / share) and, when the admin set up Drive, sent there through the server */
 const sheetName = () => `photobooth-${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`;
 function canvasBlob(c, q) { return new Promise((r) => c.toBlob(r, 'image/jpeg', q)); }
-async function keepOnPhone(c) {
-  const blob = await canvasBlob(c, 0.92); if (!blob) return;
-  const name = sheetName();
-  try {
-    const file = new File([blob], name, { type: 'image/jpeg' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
-  } catch (e) { if (e && e.name === 'AbortError') return; }
-  const u = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = u; a.download = name; document.body.append(a); a.click(); a.remove();
+// How each phone saves best:
+// - iPhone/iPad: the share sheet ("Save Image" puts it in Photos); a download would land in Files instead.
+// - Android and computers: a plain download (Android's share sheet usually has no "save to gallery").
+// - In-app browsers (LINE, Facebook, Instagram…), which drop both: long-press the picture.
+// The file is made as soon as the sheet shows, so the tap can open the share sheet straight away:
+// Safari refuses navigator.share() once the tap has waited on slow work such as toBlob.
+const UA = navigator.userAgent;
+const IOS = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IN_APP = /\bLine\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|TikTok|; wv\)/i.test(UA);
+let sheetFile = null;
+function prepareSheet(c) {
+  sheetFile = null;
+  return canvasBlob(c, 0.92).then((b) => (sheetFile = b ? new File([b], sheetName(), { type: 'image/jpeg' }) : null));
+}
+function longPressTip() {
+  const t = IOS ? 'กดค้างที่รูปด้านบน แล้วเลือก “บันทึกรูปภาพ” หรือ “เพิ่มไปยังรูปภาพ”'
+    : 'กดค้างที่รูปด้านบน แล้วเลือก “ดาวน์โหลดรูปภาพ” หรือ “บันทึกรูปภาพ”';
+  setResultText(t); say(t);
+  $('#resultImg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+async function keepOnPhone(ready) {
+  if (IN_APP) return longPressTip();
+  const file = sheetFile || await ready;
+  if (!file) return longPressTip();
+  if (IOS) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    return longPressTip();
+  }
+  const u = URL.createObjectURL(file), a = document.createElement('a');
+  a.href = u; a.download = file.name; document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(u), 30000);
-  say('บันทึกรูปลงเครื่องแล้ว');
+  say('ดาวน์โหลดรูปแล้ว ดูได้ในแกลเลอรีหรือโฟลเดอร์ดาวน์โหลด');
 }
 function jpegUnder(c, max) { // data URL small enough for the server's 3 MB limit
   let q = 0.9, u;
@@ -421,8 +444,9 @@ async function sendToDrive(c) {
 function saveBoothResult() {
   const c = F.compose(1, SH.frame, SH.shots, '', SH.n, SH.shape);
   const drive = !!P.pub?.booth.drive;
+  const ready = prepareSheet(c);
   const actions = [
-    { label: 'บันทึกลงเครื่อง', sub: 'เก็บรูปไว้ในมือถือของคุณ', icon: 'save', kind: 'main', fn: () => keepOnPhone(c) },
+    { label: 'บันทึกลงเครื่อง', sub: 'เก็บรูปไว้ในมือถือของคุณ', icon: 'save', kind: 'main', fn: () => keepOnPhone(ready) },
     { label: 'ถ่ายอีกแผ่น', sub: 'กรอบและจำนวนรูปเดิม', icon: 'retake', fn: () => { goScreen('booth'); startShoot(); } },
     { label: 'กลับหน้าแรก', sub: 'ถ่ายรูปต่อหรือส่งประกวด', icon: 'home', kind: 'ghost', fn: goHome },
   ];
