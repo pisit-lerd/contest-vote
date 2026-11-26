@@ -200,6 +200,15 @@ function liveStream(url, onData, onState, opts = {}) {
     src.onerror = () => { if (es === src) dropStream(true); }; // poll at once, reconnect later
   }
 
+  // back/forward cache: a page the browser keeps for "Back" still holds its stream, and over plain http a host gets
+  // only 6 connections, so after a few page changes the next page waited 5-55 s on a spinner. Close the stream when
+  // the page is hidden that way and reopen it if the page is shown again from the cache.
+  window.addEventListener('pagehide', () => {
+    clearTimeout(pollTimer); pollTimer = null; clearTimeout(watchTimer); clearTimeout(retryTimer);
+    if (es) { es.close(); es = null; }
+    streaming = false;
+  });
+  window.addEventListener('pageshow', (e) => { if (e.persisted && !stopped) { poll(); openStream(); } });
   poll();
   openStream();
   return () => {
