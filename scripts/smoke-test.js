@@ -219,6 +219,23 @@ async function photoPageChecks() {
   ok(await req('DELETE', '/api/admin/entries'));
   assert.equal(ok(await req('GET', '/api/admin/state')).entries.length, 0);
   assert.ok(fs.existsSync(path.join(DATA, 'uploads', path.basename(added.photo))), 'approved photo stays with its contestant');
+
+  // "ขึ้นทันที": with a target topic picked, an entry joins it at once and shows on the voting page / Live Score
+  assert.equal((await req('PUT', '/api/admin/event', { entriesTopicId: 'nope' })).status, 400, 'unknown topic refused');
+  ok(await req('PUT', '/api/admin/event', { entriesTopicId: topic.id }));
+  assert.equal(ok(await req('GET', '/api/state')).entries.auto, true, 'pages are told entries go live at once');
+  const unused = ok(await req('GET', '/api/admin/codes')).codes.filter((c) => !c.used).map((c) => c.code);
+  const H2 = { 'X-Voter-Token': ok(await req('POST', '/api/join', { code: unused[0] })).token };
+  const live = ok(await entry({ name: 'ฟ้า', concept: 'นางฟ้าไม้ถูพื้น' }, H2)).entry;
+  assert.equal(live.status, 'approved');
+  pub = ok(await req('GET', '/api/state'));
+  const shown = pub.topics.find((t) => t.id === topic.id).contestants.find((c) => c.name.startsWith('ฟ้า'));
+  assert.ok(shown && shown.photo.startsWith('/uploads/'), 'on the voting page straight away');
+  // back to "รอแอดมินอนุมัติ": the next entry waits again
+  ok(await req('PUT', '/api/admin/event', { entriesAuto: false }));
+  assert.equal(ok(await req('GET', '/api/state')).entries.auto, false);
+  assert.equal(ok(await entry({ name: 'ดาว' }, H2)).entry.status, 'pending');
+  assert.ok(!JSON.stringify(ok(await req('GET', '/api/state'))).includes('ดาว'), 'waiting entry stays private');
   driveSrv.close();
 }
 

@@ -135,3 +135,11 @@ body.stage::after { right: 0; box-shadow: -8px 0 24px rgba(0, 0, 0, .55); }
 .home-btn { position: fixed; left: 2.6vw; bottom: 1vw; z-index: var(--z-sticky); background: var(--stage-panel); color: var(--stage-text); border-radius: var(--radius-pill); padding: 8px 16px; text-decoration: none; font-weight: 600; line-height: 1.5; }
 .home-btn:hover { background: var(--stage-panel-2); }
 .home-btn:focus-visible { outline: 3px solid var(--stage-bar); outline-offset: 2px; }
+
+/* lobby: how to enter the costume contest */
+.howto { margin-top: 3.5vh; padding: 2.2vh 2vw; background: var(--stage-panel); border-radius: var(--radius-card); border-left: .5vw solid var(--stage-bar); }
+.howto h2 { font-size: 2.4vw; line-height: 1.3; }
+.howto h2 span { font-family: var(--font-round); color: var(--stage-bar); font-weight: 600; }
+.howto-sub { font-size: 1.4vw; color: var(--stage-muted); margin-top: .4vh; }
+.howto ol { margin: 1.6vh 0 0; padding-left: 2.2vw; display: grid; gap: .9vh; font-size: 1.6vw; line-height: 1.45; }
+.howto li::marker { color: var(--stage-bar); font-weight: 700; }

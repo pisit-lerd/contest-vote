@@ -86,8 +86,9 @@ Each line below fixes a real problem found by a security check. Keep it working,
   Drive), so before reading the body it needs Drive on, refuses cross-site requests and checks the room-wide limit;
   JPEG only, checked by content. Drive uploads use a service account (`GDRIVE_KEY_FILE`, `GDRIVE_FOLDER_ID`) signed with
   node's `crypto` (no Google library); the key and folder are never sent to a page, and the key file stays out of git
-  and the image (`.gitignore`, `.dockerignore`). Guest entries are
-  not public until the admin approves them.
+  and the image (`.gitignore`, `.dockerignore`). Guest entries
+  follow the admin's choice: "ขึ้นทันที" adds them to the chosen topic at once (the organisers want them on Live
+  Score straight away); "รอแอดมินอนุมัติ", or no topic picked, keeps them private until approved.
 - **Old card links keep working.** `/?c=…` redirects to `/vote?c=…`.
 - **Pages work without the live stream.** First state comes from a plain request and pages poll when the stream is
   blocked (Cloudflare Quick Tunnels carry no Server-Sent Events).
@@ -104,3 +105,4 @@ State these to users instead of hiding them:
 - The cheer word list cannot catch every spelling; an admin watches the cheer card during the intro.
 - Docker Desktop shows every phone as one address, so per-address limits count the whole room together.
 - Anyone who can open the landing page can send booth pictures into the Drive folder, up to the room-wide limit.
+- In "ขึ้นทันที" mode a joined guest's costume photo appears before anyone checks it; an admin removes unsuitable ones.

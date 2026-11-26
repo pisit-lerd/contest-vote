@@ -192,10 +192,18 @@ page counts 3-2-1 and takes each picture, then shows the finished sheet with "�
   limit. Check the folder after the event.
 
 **Costume entries ("ส่งประกวดชุด").** Closed until the admin presses "เปิดรับรูป" in the "รูปประกวดชุดจากแขก" card on
-the topics tab. Then a joined guest takes one picture in the IG frame, types name, department and concept (they
-appear on the frame), and sends it. Nothing is public yet: the entry waits in the admin's list. "อนุมัติ" adds it as
-the next number in the chosen topic (name shown as `name (department) · concept`); "ไม่อนุมัติ" deletes the picture.
-The guest sees the status on the photo page. Each guest can have 2 entries waiting and 5 in total. Pictures sent while
+the topics tab. Then a joined guest takes one picture in the IG frame (or picks one from the phone's photo library with
+"เลือกรูปจากคลังภาพ"; the frame crops it to fit), types name, department and concept (they
+appear on the frame), and sends it. In the same card the admin picks the topic guest entries join
+("รูปจากแขกเข้าหัวข้อ") and what happens when one arrives:
+- "ขึ้นทันที" (the default once a topic is picked): the entry becomes the next contestant in that topic straight
+  away, so it is on the voting page and, when that topic is on the big screen, on Live Score. The topic must be open
+  (or on the screen's intro) for guests to see it. Remove an unsuitable one from the topic's contestant list.
+- "รอแอดมินอนุมัติ": the entry waits in the card; "อนุมัติ" adds it as the next number in the chosen topic,
+  "ไม่อนุมัติ" deletes the picture.
+
+Contestants made from entries are named `name (department) · concept`. The guest sees the status on the photo page. While entries are open, the big screen's lobby (the QR page) shows a short
+"ส่งประกวดชุด (Best Costume)" how-to under the event name. Each guest can have 2 entries waiting and 5 in total. Pictures sent while
 Drive is set up also go to Drive when they are JPEG. Names and departments are personal data in `db.json`,
 like the rest; "ล้างรายการนี้" clears the list after the event (approved contestants stay).
 

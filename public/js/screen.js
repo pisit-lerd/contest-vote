@@ -82,7 +82,7 @@ const qrPanel = () => `<aside class="qr-panel"><img src="${qrSrc()}" alt="QR ส
 function draw() {
   const s = state.screen;
   const topic = state.topics.find((t) => t.id === s.topicId) || null;
-  const newSig = JSON.stringify([state.event.name, state.voteUrl, s.topicId, s.mode, s.revealStep, s.intro, topic && topic.status, topic && topic.contestants, !topic && state.topics.map((t) => [t.title, t.status])]);
+  const newSig = JSON.stringify([state.event.name, state.voteUrl, !!state.entries?.open, !!state.entries?.auto, s.topicId, s.mode, s.revealStep, s.intro, topic && topic.status, topic && topic.contestants, !topic && state.topics.map((t) => [t.title, t.status])]);
   if (newSig !== sig) {
     sig = newSig;
     const el = $('#stage');
@@ -111,7 +111,21 @@ function lobby() {
     <div><h1>${esc(state.event.name)}</h1>
       <p class="scan">สแกน QR เพื่อเข้าร่วม</p><p class="url">${esc(state.voteUrl)}</p>
       ${open.length ? `<ul>${open.map((t) => `<li>${esc(t.title)}</li>`).join('')}</ul>` : ''}
+      ${state.entries?.open ? entryHowTo() : ''}
     </div></div>`;
+}
+
+// how to enter the costume contest from the landing page; shown while the admin has entries open
+function entryHowTo() {
+  return `<section class="howto">
+    <h2>ส่งประกวดชุด <span>(Best Costume)</span></h2>
+    <p class="howto-sub">ถ่ายจากตู้หรือถ่ายจากมือถือผู้ที่สนใจประกวดได้</p>
+    <ol>
+      <li>กด “ส่งประกวดชุด” แล้วยืนให้เต็มกรอบ ระบบนับถอยหลัง 5 วินาที</li>
+      <li>ชอบรูปแล้วกดบันทึก จากนั้นกรอก ชื่อ / แผนก / Concept ชุด</li>
+      <li>${state.entries.auto ? 'รูปจะขึ้นบน Live Score ทันที' : 'รูปจะขึ้นบน Live Score เมื่อแอดมินอนุมัติ'}</li>
+    </ol>
+  </section>`;
 }
 
 function hidden(topic) {
