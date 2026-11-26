@@ -156,8 +156,9 @@ The first time the admin page opens, a checklist at the top walks through steps 
    - "แนะนำตัว" (introduce) shows one contestant at a time, large photo, number and name, while they walk on
      stage. Guests can cheer from their phones during this part. See "Contestant intro and cheers". This is the only
      mode that shows a topic that is not open for voting yet; the other modes need the topic open.
-   - "ซ่อนคะแนน" (hide scores) shows only how many people have voted; "โชว์คะแนนสด" (show live scores) shows a bar
-     chart.
+   - "ซ่อนคะแนน" (hide scores) shows only how many people have voted; "โชว์คะแนนสด" (show live scores) shows a live
+     ranking: 1st place large, 2nd and 3rd beside it, everyone else as a numbered list with the voter count and QR.
+     It re-sorts on every vote; ties share a place and nobody is placed on 0 votes.
    - "ประกาศผล" (announce results) works once voting is closed. Then reveal 3rd → 2nd → 1st one step at a time
      with the host. Confetti on 1st place.
 5. **Results**: visible at any time, and downloadable as CSV that opens in Excel with Thai text intact.
