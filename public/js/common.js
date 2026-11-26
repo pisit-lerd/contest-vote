@@ -427,6 +427,7 @@ const Bgm = (() => {
   const SRC = '/sounds/home-loop.mp3', VOL = 0.55;
   // off until the guest turns it on with the speaker button; the choice is remembered on this phone
   let el = null, enabled = false, btn = null, off = true, blocked = false, duckT = null, ducked = false;
+  let mutedElsewhere = () => false; // a page with its own speaker button (the big screen) says when it is off
   try { off = localStorage.getItem('cv_bgm_off') !== '0'; } catch { /* storage blocked */ }
   const save = () => { try { if (el && !el.paused) sessionStorage.setItem('cv_bgm_t', String(el.currentTime)); } catch { /* storage blocked */ } };
   function paint() {
@@ -472,11 +473,15 @@ const Bgm = (() => {
       sync(); // plays at once where the browser allows it; otherwise at the first tap
     },
     /** a guest page whose speaker is off: the countdown sounds stay quiet too */
-    silent: () => enabled && off,
+    silent: () => (enabled && off) || mutedElsewhere(),
+    /** pages without the music (the big screen) hand over their own speaker switch for the countdown sounds */
+    muteWhen(fn) { mutedElsewhere = fn; },
     /** the browser is holding the music back until a tap */
     isBlocked: () => blocked,
     /** lower the music for a moment so a warning sound is heard */
     duck(ms) {
+      // other sounds on the page (the big screen's shuffle music) step aside too
+      try { document.dispatchEvent(new CustomEvent('cv-duck', { detail: ms })); } catch { /* old browser */ }
       if (!el) return;
       clearTimeout(duckT);
       el.volume = VOL * 0.2;
