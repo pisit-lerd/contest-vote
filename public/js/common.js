@@ -322,9 +322,27 @@ function playClip(k) {
     a.currentTime = 0; a.play().catch(() => {});
   } catch { /* sound not allowed yet */ }
 }
+// Several tabs on one device (say /screen and /vote side by side) play a warning once: the first tab whose sound
+// is unlocked takes it through localStorage; the others still show the stamp. A tab without unlocked sound never
+// takes it, so it cannot swallow the sound for a tab that could play it.
+const TAB_ID = Math.random().toString(36).slice(2);
+function oncePerDevice(key, play) {
+  if (!audioCtx || audioCtx.state !== 'running') return play(); // fallback path: try to play here
+  const k = 'cv_snd_' + key;
+  try {
+    const cur = JSON.parse(localStorage.getItem(k) || 'null');
+    if (cur && cur.tab !== TAB_ID && Date.now() - cur.at < 20000) return;
+    localStorage.setItem(k, JSON.stringify({ tab: TAB_ID, at: Date.now() }));
+    setTimeout(() => {
+      const won = JSON.parse(localStorage.getItem(k) || 'null');
+      if (!won || won.tab === TAB_ID) play();
+      setTimeout(() => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } }, 30000);
+    }, 150); // two tabs at the same tick: the last writer wins in both
+  } catch { play(); }
+}
 // two topics ending (or reaching their last minute) together give one set of sounds, not a pile-up
 let lastMinuteAt = 0, lastTimeUpAt = 0;
-const finalMinute = () => { if (Date.now() - lastMinuteAt < 4000) return; lastMinuteAt = Date.now(); Bgm.duck(3000); playClip('minute'); };
+const finalMinute = () => { if (Date.now() - lastMinuteAt < 4000) return; lastMinuteAt = Date.now(); Bgm.duck(3000); oncePerDevice('minute', () => playClip('minute')); };
 function unlockAudio() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -357,9 +375,11 @@ function timeUp(deadline) {
   if (!again) {
     lastTimeUpAt = Date.now();
     Bgm.duck(13000); // buzzer, then the time's-up clip
-    buzzer();
-    setTimeout(() => playClip('timeUp'), 1800); // right after the buzzer's long horn
-    try { if (navigator.vibrate) navigator.vibrate([180, 90, 180, 90, 420]); } catch { /* not on this device */ }
+    oncePerDevice('end', () => {
+      buzzer();
+      setTimeout(() => playClip('timeUp'), 1800); // right after the buzzer's long horn
+      try { if (navigator.vibrate) navigator.vibrate([180, 90, 180, 90, 420]); } catch { /* not on this device */ }
+    });
   }
   if (!timeUpStyle) { // one place for every page (index.html does not load base.css)
     timeUpStyle = true;
@@ -405,12 +425,17 @@ const Bgm = (() => {
     if (!enabled) return;
     if (ducked) return;
     if (!off && !document.hidden) {
-      el.play().then(() => { blocked = false; paint(); }, () => { blocked = true; paint(); });
+      el.play().then(() => { blocked = false; claim(); paint(); }, () => { blocked = true; paint(); });
     } else { save(); el.pause(); }
     paint();
   }
   // browsers hold back sound until the first tap or key press on the page: try again then
   const onTap = (e) => { if (btn && e.target && e.target.closest && e.target.closest('#' + btn.id)) return; if (!off && el.paused) sync(); };
+  // one tab plays at a time: a tab that starts playing tells the others, and they pause (the tab used last wins)
+  let chan = null;
+  try { chan = new BroadcastChannel('cv-bgm'); } catch { /* old browser: tabs may overlap */ }
+  const claim = () => { try { chan && chan.postMessage({ playing: TAB_ID }); } catch { /* closed */ } };
+  if (chan) chan.onmessage = (m) => { if (m.data && m.data.playing && m.data.playing !== TAB_ID && el && !el.paused) { save(); el.pause(); } };
   return {
     enable(button) {
       if (enabled) return;
@@ -420,6 +445,7 @@ const Bgm = (() => {
       if (t) el.addEventListener('loadedmetadata', () => { try { el.currentTime = t % (el.duration || Infinity); } catch { /* not seekable yet */ } }, { once: true });
       for (const ev of ['click', 'touchend', 'keydown']) document.addEventListener(ev, onTap, { passive: true });
       document.addEventListener('visibilitychange', sync);
+      window.addEventListener('focus', sync); // back to this tab: it takes the music over
       window.addEventListener('pagehide', save);
       setInterval(save, 1000);
       if (btn) btn.addEventListener('click', () => {
