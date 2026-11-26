@@ -160,7 +160,8 @@ The first time the admin page opens, a checklist at the top walks through steps 
      swap places at random every few seconds to a looping `public/sounds/avengers.mp3`, so the room feels the race
      without seeing it (the order is random on the screen, never the real counts); "โชว์คะแนนสด" (show live scores) shows a live
      ranking: 1st place large, 2nd and 3rd beside it, everyone else as a numbered list with the voter count and QR.
-     It re-sorts on every vote; ties share a place and nobody is placed on 0 votes.
+     It re-sorts on every vote; ties share a place and nobody is placed on 0 votes. On short screens, list rows that don't fit
+     are summed up as "+N คน".
    - "ประกาศผล" (announce results) works once voting is closed. Then reveal 3rd → 2nd → 1st one step at a time
      with the host. Confetti on 1st place.
 5. **Results**: visible at any time, and downloadable as CSV that opens in Excel with Thai text intact.
