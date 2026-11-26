@@ -5,7 +5,8 @@ People should start with [README.md](README.md).
 
 ## What this is
 
-A contest voting app for company parties. One Node process serves the pages: guests (`/`), admin (`/admin`), the big
+A contest voting app for company parties. One Node process serves the pages: the party landing page and photo booth
+(`/`), guests' voting (`/vote`), admin (`/admin`), the big
 screen (`/screen`), and the registration desk (`/checkin`, admin) with its claim page (`/claim`). State is kept in
 memory and written to `data/db.json`.
 
@@ -15,6 +16,7 @@ memory and written to `data/db.json`.
 | `smtp.js` | Small SMTP client for Gmail and company servers (no nodemailer) |
 | `env.js` | Loads `.env`; values from the real environment win |
 | `public/` | Pages and browser code. `js/common.js` has the shared live-update logic, `js/pow.js` the name-mode puzzle |
+| `public/index.html`, `js/party.js`, `js/frames.js`, `css/party.css` | Landing page, photo booth and costume entries (from the "Staff Party" design); `fonts/party/` holds its fonts (OFL) |
 | `docs/checkin-guide.md` | Thai guide for registration-desk staff |
 | `Dockerfile`, `compose.yaml` | Container run; data in the `/data` volume |
 | `scripts/smoke-test.js` | End-to-end test, including 200 simultaneous voters and email via a local Brevo stand-in |
@@ -79,6 +81,14 @@ Each line below fixes a real problem found by a security check. Keep it working,
   short single-line text, no links, blocked words, per-guest and room-wide limits, no sender identity sent anywhere.
 - **Names given by the admin are fixed.** The server never accepts a name from a phone; a self-set name stays in that
   phone's storage.
+- **Booth pictures and entries go through the server.** `/api/entries` needs a joined guest and gets the big body
+  limit only after the session checks out. `/api/booth` is open to every visitor (the organisers want every sheet in
+  Drive), so before reading the body it needs Drive on, refuses cross-site requests and checks the room-wide limit;
+  JPEG only, checked by content. Drive uploads use a service account (`GDRIVE_KEY_FILE`, `GDRIVE_FOLDER_ID`) signed with
+  node's `crypto` (no Google library); the key and folder are never sent to a page, and the key file stays out of git
+  and the image (`.gitignore`, `.dockerignore`). Guest entries are
+  not public until the admin approves them.
+- **Old card links keep working.** `/?c=…` redirects to `/vote?c=…`.
 - **Pages work without the live stream.** First state comes from a plain request and pages poll when the stream is
   blocked (Cloudflare Quick Tunnels carry no Server-Sent Events).
 
@@ -93,3 +103,4 @@ State these to users instead of hiding them:
 - Someone filming the registration desk with a script could keep claiming cards; desk staff watch for it.
 - The cheer word list cannot catch every spelling; an admin watches the cheer card during the intro.
 - Docker Desktop shows every phone as one address, so per-address limits count the whole room together.
+- Anyone who can open the landing page can send booth pictures into the Drive folder, up to the room-wide limit.

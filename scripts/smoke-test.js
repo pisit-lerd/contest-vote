@@ -93,6 +93,135 @@ async function mailIdle() {
   throw new Error('email queue never finished');
 }
 
+/* ================= photo page: landing, booth pictures to Drive, guest costume entries ================= */
+async function photoPageChecks() {
+  // stand-in for Google: the token endpoint (checks the service account's signed JWT) and the Drive files API
+  const FOLDER = 'folder' + crypto.randomBytes(8).toString('hex');
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }); // made per run
+  const keyFile = path.join(DATA, 'gdrive-key.json');
+  fs.writeFileSync(keyFile, JSON.stringify({ type: 'service_account', client_email: 'booth@test.iam.gserviceaccount.com',
+    private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }), token_uri: 'https://oauth2.googleapis.com/token' }));
+  const drive = { mode: 'ok', sent: [], tokens: 0, token: '' };
+  const driveSrv = require('http').createServer((rq, rs) => {
+    const chunks = []; rq.on('data', (d) => chunks.push(d)); rq.on('end', () => {
+      const body = Buffer.concat(chunks);
+      const reply = (st, o) => { rs.writeHead(st, { 'content-type': 'application/json' }); rs.end(JSON.stringify(o)); };
+      if (rq.url === '/token') {
+        const jwt = new URLSearchParams(body.toString()).get('assertion').split('.');
+        const okSig = crypto.verify('RSA-SHA256', Buffer.from(jwt[0] + '.' + jwt[1]), publicKey, Buffer.from(jwt[2], 'base64url'));
+        const claims = JSON.parse(Buffer.from(jwt[1], 'base64url'));
+        if (!okSig || claims.iss !== 'booth@test.iam.gserviceaccount.com' || !claims.scope.includes('auth/drive')) return reply(400, { error: 'invalid_grant' });
+        drive.tokens++; drive.token = 'tok-' + crypto.randomBytes(6).toString('hex');
+        return reply(200, { access_token: drive.token, expires_in: 3600 });
+      }
+      if (rq.headers.authorization !== 'Bearer ' + drive.token) return reply(401, { error: { message: 'Invalid Credentials' } });
+      if (rq.method === 'GET' && rq.url.startsWith(`/drive/v3/files/${FOLDER}?`)) {
+        return reply(200, { id: FOLDER, name: 'Party Photos', mimeType: 'application/vnd.google-apps.folder', driveId: '0Ashared' });
+      }
+      if (rq.method === 'POST' && rq.url.startsWith('/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true')) {
+        if (drive.mode === 'fail') return reply(403, { error: { message: 'Insufficient permissions for the specified parent.' } });
+        const b = rq.headers['content-type'].match(/boundary=(\S+)/)[1];
+        const parts = body.toString('latin1').split('--' + b).slice(1, 3).map((p) => p.slice(p.indexOf('\r\n\r\n') + 4, -2));
+        drive.sent.push({ meta: JSON.parse(Buffer.from(parts[0], 'latin1').toString('utf8')), data: Buffer.from(parts[1], 'latin1') });
+        return reply(200, { id: 'file' + drive.sent.length });
+      }
+      reply(404, { error: { message: 'not found' } });
+    });
+  });
+  await new Promise((r) => driveSrv.listen(0, '127.0.0.1', r));
+  const g = `http://127.0.0.1:${driveSrv.address().port}`;
+  await restart({ ADMIN_PASSWORD: ADMIN_PW_NEXT, BREVO_API_KEY: '', GDRIVE_KEY_FILE: keyFile, GDRIVE_FOLDER_ID: FOLDER, GDRIVE_TOKEN_URL: g + '/token', GDRIVE_API_URL: g });
+
+  // the server checks the folder at start and tells the admin
+  let ds = null;
+  for (let i = 0; i < 50 && !(ds && ds.ok !== null); i++) { ds = ok(await req('GET', '/api/admin/state')).drive; await new Promise((r) => setTimeout(r, 100)); }
+  assert.equal(ds.ok, true, JSON.stringify(ds));
+  assert.equal(ds.folderName, 'Party Photos');
+
+  // "/" is the landing page; old card links (/?c=…) still reach the voting page
+  const old = await fetch(BASE + '/?c=ABCDEFGH&s=sig123', { redirect: 'manual' });
+  assert.equal(old.status, 302);
+  assert.equal(old.headers.get('location'), '/vote?c=ABCDEFGH&s=sig123');
+  const landing = await fetch(BASE + '/');
+  assert.match(await landing.text(), /\/js\/party\.js/);
+  assert.match(landing.headers.get('permissions-policy'), /camera=\(self\)/);
+  assert.match(await (await fetch(BASE + '/vote')).text(), /\/js\/vote\.js/);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'vote.html'), 'utf8');
+  assert.ok(!/<script>(?!<\/script>)|\son[a-z]+=/i.test(html), 'vote.html: no inline script (CSP)');
+
+  const H = { 'X-Voter-Token': ok(await req('POST', '/api/join', { code: 'abcdef' })).token };
+  let pub = ok(await req('GET', '/api/state'));
+  assert.equal(pub.booth.drive, true);
+  assert.equal(pub.entries.open, false);
+  assert.ok(!JSON.stringify(pub).includes(FOLDER) && !JSON.stringify(pub).includes('gserviceaccount'), 'Drive settings never reach a page');
+
+  // booth: every visitor's sheet goes to Drive (joined or not), real JPEG only, from our own page only
+  const jpeg = 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(200)]).toString('base64');
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  assert.equal((await req('POST', '/api/booth', { photo: jpeg }, { 'Sec-Fetch-Site': 'cross-site' })).status, 403, 'other sites cannot upload');
+  assert.equal((await req('POST', '/api/booth', { photo: 'data:image/jpeg;base64,' + Buffer.from('<html>').toString('base64') }, H)).status, 400, 'not really a JPEG');
+  assert.equal((await req('POST', '/api/booth', { photo: png }, H)).status, 400, 'booth takes JPEG only');
+  assert.equal((await req('POST', '/api/booth', { photo: 'x'.repeat(40000) }, { 'Sec-Fetch-Site': 'cross-site' })).status, 403, 'refused before the body is read');
+  ok(await req('POST', '/api/booth', { photo: jpeg }));
+  ok(await req('POST', '/api/booth', { photo: jpeg }, H));
+  assert.equal(drive.sent.length, 2);
+  assert.match(drive.sent[0].meta.name, /^photobooth-[\w-]+\.jpg$/);
+  assert.deepEqual(drive.sent[0].meta.parents, [FOLDER]);
+  assert.ok(drive.sent[0].data.equals(Buffer.from(jpeg.split(',')[1], 'base64')), 'picture arrives byte for byte');
+  assert.equal(drive.tokens, 1, 'one token, reused');
+  drive.mode = 'fail';
+  assert.equal((await req('POST', '/api/booth', { photo: jpeg }, H)).status, 502);
+  assert.match(ok(await req('GET', '/api/admin/state')).drive.error, /สิทธิ์/, 'admin sees why Drive failed');
+  drive.mode = 'ok';
+  // anyone can send, so the whole room shares one limit: a flood stops at it (and Drive stops filling)
+  let floodLimited = 0;
+  for (let i = 0; i < 40; i++) if ((await req('POST', '/api/booth', { photo: jpeg })).status === 429) floodLimited++;
+  assert.ok(floodLimited >= 10, `room-wide booth limit (${floodLimited}/40 refused)`);
+  assert.ok(drive.sent.length <= 32, `Drive got at most the room's limit (${drive.sent.length})`);
+
+  // costume entries: closed until the admin opens them, then each waits for approval
+  const entry = (b, h = H) => req('POST', '/api/entries', { name: 'มายด์', dept: 'CS', concept: 'เจ้าหญิงไม้กวาด', photo: png, ...b }, h);
+  assert.equal((await entry({})).status, 409, 'entries closed by default');
+  ok(await req('PUT', '/api/admin/event', { entriesOpen: true }));
+  assert.equal(ok(await req('GET', '/api/state')).entries.open, true);
+  assert.equal((await entry({}, {})).status, 401);
+  assert.equal((await entry({ concept: ' ' })).status, 400);
+  assert.equal((await entry({ photo: 'data:image/png;base64,' + Buffer.from('<html><script>alert(1)</script></html>').toString('base64') })).status, 400, 'fake image refused');
+  const e1 = ok(await entry({ name: 'มายด์\n<b>x</b>' })).entry;
+  assert.equal(e1.name, 'มายด์ <b>x</b>', 'one line only');
+  const e2 = ok(await entry({ name: 'บอส' })).entry;
+  assert.equal((await entry({ name: 'สาม' })).status, 409, 'at most 2 waiting per guest');
+  pub = ok(await req('GET', '/api/state'));
+  assert.ok(!JSON.stringify(pub).includes('มายด์'), 'waiting entries are not public');
+  let me = ok(await req('GET', '/api/me', undefined, H));
+  assert.deepEqual(me.entries.map((e) => e.status), ['pending', 'pending']);
+
+  // admin-only decisions
+  const adminCookie = cookie; cookie = '';
+  assert.equal((await req('POST', `/api/admin/entries/${e1.id}/approve`, { topicId: 'x' })).status, 401);
+  cookie = adminCookie;
+  let st = ok(await req('GET', '/api/admin/state'));
+  assert.equal(st.entries.length, 2);
+  assert.ok(!('voterId' in st.entries[0]));
+  const topic = st.topics[1];
+  assert.equal((await req('POST', `/api/admin/entries/${e1.id}/approve`, {})).status, 400, 'topic required');
+  st = ok(await req('POST', `/api/admin/entries/${e1.id}/approve`, { topicId: topic.id }));
+  const added = st.topics[1].contestants.find((c) => c.name.startsWith('มายด์'));
+  assert.ok(added && added.photo.startsWith('/uploads/'));
+  assert.equal(new Set(st.topics[1].contestants.map((c) => c.number)).size, st.topics[1].contestants.length, 'numbers stay unique');
+  assert.equal((await req('POST', `/api/admin/entries/${e1.id}/approve`, { topicId: topic.id })).status, 409, 'decided once');
+  const e2photo = st.entries.find((e) => e.id === e2.id).photo;
+  ok(await req('POST', `/api/admin/entries/${e2.id}/reject`));
+  await new Promise((r) => setTimeout(r, 100));
+  assert.ok(!fs.existsSync(path.join(DATA, 'uploads', path.basename(e2photo))), 'rejected photo deleted');
+  me = ok(await req('GET', '/api/me', undefined, H));
+  assert.deepEqual(me.entries.map((e) => e.status).sort(), ['approved', 'rejected']);
+  ok(await req('DELETE', '/api/admin/entries'));
+  assert.equal(ok(await req('GET', '/api/admin/state')).entries.length, 0);
+  assert.ok(fs.existsSync(path.join(DATA, 'uploads', path.basename(added.photo))), 'approved photo stays with its contestant');
+  driveSrv.close();
+}
+
 async function main() {
   await new Promise((r) => brevoSrv.listen(0, '127.0.0.1', r));
   brevo.port = brevoSrv.address().port;
@@ -513,6 +642,7 @@ async function main() {
   assert.equal(st.mail.configured, false); assert.equal(st.mail.total, 17);
   assert.match((await req('POST', '/api/admin/mail/send', { which: 'failed' })).data.error, /BREVO_API_KEY/);
 
+  await photoPageChecks();
   console.log('ALL PASSED');
 }
 

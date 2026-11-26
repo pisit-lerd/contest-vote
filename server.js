@@ -71,7 +71,7 @@ const TRUST_PROXY = parseTrustProxy(process.env.TRUST_PROXY);
 
 function emptyDb() {
   return {
-    event: { name: 'งานเลี้ยงปีใหม่', accessMode: 'code', publicUrl: '' },
+    event: { name: 'งานเลี้ยงปีใหม่', accessMode: 'code', publicUrl: '', entriesOpen: false },
     screen: { topicId: null, mode: 'hidden', revealStep: 0, introIndex: 0 }, // mode: hidden | intro | live | reveal
     topics: [],
     voters: {},   // id -> { id, kind, key, label, createdAt }   (name mode: key = "r:<rosterId>")
@@ -84,6 +84,8 @@ function emptyDb() {
     mail: { recipients: [], lastError: '' }, // email delivery of codes, see "email" below
     roster: [],   // name mode allow-list: [{ id, code, name }]
     ballots: {},  // topicId -> { voterId: [contestantId] }
+    // costume entries sent by guests from the photo page; the admin approves each into a topic
+    entries: [],  // [{ id, voterId, name, dept, concept, photo, status: pending|approved|rejected, createdAt, topicId?, contestantId? }]
     adminSessions: {}, // sha256(token) -> { createdAt, expiresAt }
     secret: crypto.randomBytes(32).toString('hex'), // signs QR links on code cards
     adminPwFp: null,
@@ -195,6 +197,98 @@ function readCaFile(k, s) {
   const certs = text.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
   if (!certs) { s.missing.push(`${k} (ไฟล์ ${file} ไม่ใช่ใบรับรองแบบ .pem ที่ขึ้นต้นด้วย -----BEGIN CERTIFICATE-----)`); return undefined; }
   return certs;
+}
+
+/* ---------------- Google Drive (photo booth) ----------------
+ * Pictures go straight into a folder on a Shared Drive, uploaded by a Google Cloud service account.
+ * GDRIVE_KEY_FILE: the service account's JSON key (a secret, like a password); GDRIVE_FOLDER_ID: the folder.
+ * The server signs its own token request (RS256 with node's crypto), so no Google library is needed.
+ * Pages never see the key or the folder; they only learn whether Drive is on. */
+const GDRIVE_TOKEN_URL = process.env.GDRIVE_TOKEN_URL || 'https://oauth2.googleapis.com/token'; // override only for tests
+const GDRIVE_API = (process.env.GDRIVE_API_URL || 'https://www.googleapis.com').replace(/\/+$/, ''); // override only for tests
+const GDRIVE = (() => {
+  const keyPath = envStr('GDRIVE_KEY_FILE'), folder = envStr('GDRIVE_FOLDER_ID');
+  if (!keyPath && !folder) return null;
+  const off = (why) => { console.log(`[!] Google Drive ปิดอยู่: ${why}`); return null; };
+  if (!keyPath) return off('ยังไม่ได้ใส่ GDRIVE_KEY_FILE (ไฟล์ key ของ service account)');
+  if (!/^[\w-]{10,}$/.test(folder || '')) return off('GDRIVE_FOLDER_ID ไม่ถูกต้อง ใช้ส่วนท้ายของลิงก์โฟลเดอร์ drive.google.com/drive/folders/...');
+  const file = path.resolve(path.dirname(ENV_INFO && ENV_INFO.file ? ENV_INFO.file : path.join(__dirname, '.env')), keyPath);
+  let key;
+  try { key = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {
+    return off(`อ่านไฟล์ ${file} ไม่ได้ (${e.code || 'ไม่ใช่ JSON'})${e.code === 'EACCES' ? ' · ใน Docker ไฟล์ต้องอ่านได้ทุกคน: chmod 644' : ''}`);
+  }
+  if (key.type !== 'service_account' || !key.client_email || !String(key.private_key || '').includes('PRIVATE KEY')) {
+    return off(`ไฟล์ ${file} ไม่ใช่ key ของ service account (ต้องเป็นไฟล์ JSON ที่ได้จาก Service Accounts → Keys → Create new key)`);
+  }
+  try { crypto.createPrivateKey(key.private_key); } catch { return off(`private key ในไฟล์ ${file} ใช้ไม่ได้`); }
+  return { email: key.client_email, privateKey: key.private_key, folder, token: null, tokenExp: 0, status: { ok: null, folderName: '', error: '' } };
+})();
+
+async function driveToken() {
+  if (GDRIVE.token && Date.now() < GDRIVE.tokenExp - 60000) return GDRIVE.token;
+  const now = Math.floor(Date.now() / 1000);
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const unsigned = b64({ alg: 'RS256', typ: 'JWT' }) + '.' + b64({
+    iss: GDRIVE.email, scope: 'https://www.googleapis.com/auth/drive', aud: GDRIVE_TOKEN_URL, iat: now, exp: now + 3600,
+  });
+  const jwt = unsigned + '.' + crypto.sign('RSA-SHA256', Buffer.from(unsigned), GDRIVE.privateKey).toString('base64url');
+  const r = await fetch(GDRIVE_TOKEN_URL, {
+    method: 'POST', signal: AbortSignal.timeout(15000),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) throw new Error(`ขอสิทธิ์จาก Google ไม่ได้: ${j.error_description || j.error || 'HTTP ' + r.status}`);
+  GDRIVE.token = j.access_token; GDRIVE.tokenExp = Date.now() + (Number(j.expires_in) || 3600) * 1000;
+  return GDRIVE.token;
+}
+function driveError(r, j) {
+  const msg = j?.error?.message || `HTTP ${r.status}`;
+  if (r.status === 404) return `ไม่พบโฟลเดอร์ ${GDRIVE.folder} หรือ service account (${GDRIVE.email}) ยังไม่ได้เป็นสมาชิกของ Shared Drive นั้น`;
+  if (/storage quota/i.test(msg)) return 'service account เก็บไฟล์ใน My Drive ไม่ได้ ต้องใช้โฟลเดอร์ใน Shared Drive';
+  if (r.status === 403) return `service account ไม่มีสิทธิ์เพิ่มไฟล์ในโฟลเดอร์นี้ (ให้สิทธิ์ Contributor ขึ้นไป): ${msg}`;
+  return msg;
+}
+/** checks the folder at start so the console and the admin page say whether Drive works */
+async function checkDrive() {
+  try {
+    const t = await driveToken();
+    const r = await fetch(`${GDRIVE_API}/drive/v3/files/${encodeURIComponent(GDRIVE.folder)}?supportsAllDrives=true&fields=id,name,mimeType,driveId`, {
+      headers: { Authorization: `Bearer ${t}` }, signal: AbortSignal.timeout(15000),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(driveError(r, j));
+    if (j.mimeType !== 'application/vnd.google-apps.folder') throw new Error('GDRIVE_FOLDER_ID ไม่ใช่โฟลเดอร์');
+    if (!j.driveId) throw new Error('โฟลเดอร์นี้อยู่ใน My Drive ต้องย้ายไปอยู่ใน Shared Drive (service account เก็บไฟล์ใน My Drive ไม่ได้)');
+    GDRIVE.status = { ok: true, folderName: j.name || '', error: '' };
+    console.log(`Google Drive พร้อม: รูปจาก Photo Booth จะไปที่โฟลเดอร์ "${j.name}"`);
+  } catch (e) {
+    GDRIVE.status = { ok: false, folderName: '', error: e.message };
+    console.log(`[!] Google Drive ยังใช้ไม่ได้: ${e.message}`);
+  }
+  changed();
+}
+async function sendToDrive(buf, filename) {
+  const t = await driveToken();
+  const boundary = 'cv' + crypto.randomBytes(12).toString('hex');
+  const meta = JSON.stringify({ name: filename, parents: [GDRIVE.folder], mimeType: 'image/jpeg' });
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: image/jpeg\r\n\r\n`),
+    buf, Buffer.from(`\r\n--${boundary}--`),
+  ]);
+  const r = await fetch(`${GDRIVE_API}/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id`, {
+    method: 'POST', body, signal: AbortSignal.timeout(30000),
+    headers: { Authorization: `Bearer ${t}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+  });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) GDRIVE.token = null; // token revoked or expired early: fetch a new one next time
+  if (!r.ok || !j.id) {
+    const msg = driveError(r, j);
+    GDRIVE.status = { ...GDRIVE.status, ok: false, error: msg }; changed();
+    throw new Error(msg);
+  }
+  if (!GDRIVE.status.ok) { GDRIVE.status = { ...GDRIVE.status, ok: true, error: '' }; changed(); }
+  return j.id;
 }
 
 /* which service sends: MAIL_PROVIDER, or guessed from the settings present (Brevo first, as before) */
@@ -720,6 +814,8 @@ function voterState() {
     event: { name: db.event.name, accessMode: db.event.accessMode },
     cheer: { open: cheerOpen(), emoji: db.cheer.emoji, text: db.cheer.text, set: CHEER_EMOJI },
     voteUrl: voteUrl(),
+    booth: { drive: !!GDRIVE },
+    entries: { open: !!db.event.entriesOpen },
     topics: db.topics
       .filter((t) => t.status !== 'draft')
       .map((t) => ({ id: t.id, title: t.title, maxVotes: t.maxVotes, status: t.status, contestants: t.contestants.map(pub) })),
@@ -777,6 +873,8 @@ function adminState() {
     roster: { count: db.roster.length, unlistedWithVotes },
     voterCount: Object.keys(db.voters).length,
     ballotCount: totalBallots(),
+    entries: [...db.entries].reverse().map(({ voterId, ...e }) => e),
+    drive: GDRIVE ? { email: GDRIVE.email, ...GDRIVE.status } : null,
   };
 }
 
@@ -926,7 +1024,7 @@ app.use((req, res, next) => {
     'X-Frame-Options': 'DENY',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'same-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Permissions-Policy': 'camera=(self), microphone=(), geolocation=()', // camera: the photo page
     'Cross-Origin-Opener-Policy': 'same-origin',
   });
   // HSTS only when TLS was terminated by a trusted proxy on a real domain (never on the
@@ -946,9 +1044,26 @@ app.use((req, res, next) => {
 });
 
 // big bodies (photos) only for signed-in admin routes; public routes get a small limit
+// (and for the two guest photo routes, only once the voter's session checks out)
 const jsonBig = express.json({ limit: '4mb' });
 const jsonSmall = express.json({ limit: '16kb' });
-app.use((req, res, next) => (req.path.startsWith('/api/admin/') && adminSession(cookies(req).admin) ? jsonBig : jsonSmall)(req, res, next));
+app.use((req, res, next) => {
+  if (req.method === 'POST' && req.path === '/api/booth') return boothGate(req, res, next);
+  const big = (req.path.startsWith('/api/admin/') && adminSession(cookies(req).admin))
+    || (req.method === 'POST' && req.path === '/api/entries' && voterFromReq(req));
+  (big ? jsonBig : jsonSmall)(req, res, next);
+});
+/* booth pictures go to Drive for every visitor, joined or not (the organisers asked for every sheet to be kept).
+ * Before reading a big body: Drive must be on, the request must come from our own page (no other site can make
+ * a visitor's browser upload), and the whole room must be under its limit. */
+function boothGate(req, res, next) {
+  if (!GDRIVE) return jsonSmall(req, res, next);
+  const site = req.get('sec-fetch-site');
+  if (site && site !== 'same-origin' && site !== 'none') return fail(res, 403, 'ส่งรูปได้จากหน้าถ่ายรูปของงานเท่านั้น');
+  const wait = guestLimits.boothAll.wait('*');
+  if (wait) return limited(res, wait, 'มีคนบันทึกรูปเยอะอยู่ ลองใหม่ใน {s}');
+  jsonBig(req, res, next);
+}
 
 app.use('/fonts/anuphan', express.static(path.join(__dirname, 'node_modules/@fontsource/anuphan'), { maxAge: '30d' }));
 // QR reader for "open from a card picture" (iPhone Safari has no built-in one); loaded only when that button is used
@@ -958,6 +1073,8 @@ app.use('/uploads', express.static(UPLOAD_DIR, {
   maxAge: '365d', immutable: true,
   setHeaders: (res) => res.set('Content-Security-Policy', "default-src 'none'; sandbox"),
 }));
+// "/" is the party landing page; voting lives at /vote. Cards, emails and the desk still link to /?c=…
+app.get('/', (req, res, next) => (req.query.c ? res.redirect(302, '/vote' + req.originalUrl.slice(1)) : next()));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 const fail = (res, status, message) => res.status(status).json({ error: message });
@@ -1110,7 +1227,8 @@ app.get('/api/me', (req, res) => {
   // a name the admin gave this person (roster, or the email list) is fixed: the phone shows it and offers no edit
   const r = v.kind === 'code' && db.codes[v.key]?.mail ? recipientById(db.codes[v.key].mail) : null;
   const fixedName = v.kind === 'name' ? label : r ? (r.name || r.email) : null;
-  res.json({ label, fixedName, picks });
+  const entries = db.entries.filter((e) => e.voterId === v.id).map((e) => ({ id: e.id, name: e.name, concept: e.concept, status: e.status }));
+  res.json({ label, fixedName, picks, entries });
 });
 
 app.post('/api/vote', (req, res) => {
@@ -1155,6 +1273,78 @@ app.post('/api/cheer', (req, res) => {
   cheerLimits.text.take(v.id);
   if (!db.cheer.muted[v.id]) { cheerLimits.textAll.take('*'); pushCheer('t', text, v.id); }
   res.json({ ok: true });
+});
+
+/* ----- photo page: booth pictures to Google Drive, costume entries for the admin to approve ----- */
+
+const guestLimits = {
+  booth: bucket(6, 1 / 30),     // per joined voter: 6 sheets, then 2 a minute
+  boothAll: bucket(30, 1 / 2),  // the whole room, joined or not: 30 sheets, then 30 a minute
+  entry: bucket(3, 1 / 120),    // per voter: 3 tries, then 1 every 2 minutes
+  entryAll: bucket(30, 1 / 5),
+};
+setInterval(() => { for (const l of Object.values(guestLimits)) l.sweep(); }, 60 * 1000).unref();
+const ENTRY_PENDING_PER_VOTER = 2;
+const ENTRY_TOTAL_PER_VOTER = 5;
+const ENTRY_PENDING_MAX = 300;
+const DRIVE_MAX_BUSY = 4; // uploads to Google Drive at the same time
+let driveBusy = 0;
+
+/** one line of plain text: no control characters or line breaks, spaces collapsed */
+const oneLine = (v, max) => [...String(v ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim()].slice(0, max).join('');
+const fileSafe = (s) => s.replace(/[\\/:*?"<>|#%\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 24) || 'guest';
+
+const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
+
+app.post('/api/booth', async (req, res) => {
+  const v = voterFromReq(req); // optional: joined guests also get a per-person limit
+  if (!GDRIVE) return fail(res, 409, 'ยังไม่ได้ตั้งค่า Google Drive กด “บันทึกลงเครื่อง” แทน');
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body?.photo || ''));
+  if (!m) return fail(res, 400, 'ไฟล์รูปไม่ถูกต้อง');
+  const buf = Buffer.from(m[1], 'base64');
+  if (buf.length > 3 * 1024 * 1024) return fail(res, 400, 'รูปใหญ่เกิน 3 MB');
+  if (sniffImage(buf) !== 'jpg') return fail(res, 400, 'ไฟล์นี้ไม่ใช่รูป JPG จริง');
+  const wait = Math.max(v ? guestLimits.booth.wait(v.id) : 0, guestLimits.boothAll.wait('*'));
+  if (wait) return limited(res, wait, 'บันทึกรูปถี่ไป ลองใหม่ใน {s}');
+  if (driveBusy >= DRIVE_MAX_BUSY) return limited(res, 5, 'มีคนกำลังบันทึกรูปหลายคน ลองใหม่ใน {s}');
+  if (v) guestLimits.booth.take(v.id);
+  guestLimits.boothAll.take('*');
+  driveBusy++;
+  try {
+    await sendToDrive(buf, `photobooth-${stamp()}-${crypto.randomBytes(3).toString('hex')}.jpg`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('ส่งรูปไป Google Drive ไม่สำเร็จ:', e.message);
+    fail(res, 502, 'บันทึกไป Google Drive ไม่สำเร็จ ลองอีกครั้ง หรือกด “บันทึกลงเครื่อง”');
+  } finally { driveBusy--; }
+});
+
+app.post('/api/entries', (req, res) => {
+  const v = voterFromReq(req);
+  if (!v) return fail(res, 401, 'กรุณาลงชื่อเข้างานก่อน');
+  if (!db.event.entriesOpen) return fail(res, 409, 'ตอนนี้ยังไม่เปิดรับสมัครประกวดชุด');
+  const b = req.body || {};
+  const name = oneLine(b.name, 24), dept = oneLine(b.dept, 24), concept = oneLine(b.concept, 32);
+  if (!name || !dept || !concept) return fail(res, 400, 'กรุณากรอกชื่อ แผนก และ Concept ให้ครบ');
+  const mine = db.entries.filter((e) => e.voterId === v.id);
+  if (mine.filter((e) => e.status === 'pending').length >= ENTRY_PENDING_PER_VOTER) return fail(res, 409, 'คุณมีรูปรอแอดมินตรวจอยู่แล้ว รอผลก่อนแล้วค่อยส่งใหม่');
+  if (mine.length >= ENTRY_TOTAL_PER_VOTER) return fail(res, 409, `ส่งประกวดได้ไม่เกิน ${ENTRY_TOTAL_PER_VOTER} ครั้งต่อคน`);
+  if (db.entries.filter((e) => e.status === 'pending').length >= ENTRY_PENDING_MAX) return fail(res, 409, 'มีรูปรอตรวจเยอะมาก รอแอดมินสักครู่แล้วลองใหม่');
+  const wait = Math.max(guestLimits.entry.wait(v.id), guestLimits.entryAll.wait('*'));
+  if (wait) return limited(res, wait, 'ส่งถี่ไป ลองใหม่ใน {s}');
+  guestLimits.entry.take(v.id); guestLimits.entryAll.take('*');
+  const p = savePhoto(b.photo);
+  if (p.error) return fail(res, 400, p.error);
+  const e = { id: newId('e'), voterId: v.id, name, dept, concept, photo: p.url, status: 'pending', createdAt: new Date().toISOString() };
+  db.entries.push(e);
+  changed();
+  // a copy for the same Drive folder as the booth pictures; a Drive hiccup never blocks the entry
+  if (GDRIVE) {
+    fs.promises.readFile(path.join(UPLOAD_DIR, path.basename(p.url)))
+      .then((buf) => sniffImage(buf) === 'jpg' && sendToDrive(buf, `contest-${fileSafe(name)}-${fileSafe(dept)}-${stamp()}.jpg`))
+      .catch((err) => console.error('ส่งรูปประกวดไป Google Drive ไม่สำเร็จ:', err.message));
+  }
+  res.json({ ok: true, entry: { id: e.id, name, concept, status: e.status } });
 });
 
 /* ----- admin ----- */
@@ -1207,6 +1397,7 @@ app.put('/api/admin/event', (req, res) => {
     if (u && !/^https?:\/\/[^\s]+$/i.test(u)) return fail(res, 400, 'ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://');
     db.event.publicUrl = u;
   }
+  if (b.entriesOpen !== undefined) db.event.entriesOpen = b.entriesOpen === true;
   if (b.accessMode !== undefined && b.accessMode !== db.event.accessMode) {
     if (!ACCESS_MODES.includes(b.accessMode)) return fail(res, 400, 'รูปแบบการเข้าโหวตไม่ถูกต้อง');
     if (totalBallots() > 0) return fail(res, 409, 'มีคนโหวตแล้ว เปลี่ยนรูปแบบการเข้าไม่ได้ ต้องล้างผลโหวตทั้งหมดก่อน');
@@ -1631,6 +1822,44 @@ app.delete('/api/admin/cheers/mute', (req, res) => {
 });
 
 /* reset */
+/* guest costume entries */
+function pendingEntry(res, id) {
+  const e = db.entries.find((x) => x.id === id);
+  if (!e) { fail(res, 404, 'ไม่พบรายการนี้'); return null; }
+  if (e.status !== 'pending') { fail(res, 409, 'รายการนี้ตรวจไปแล้ว'); return null; }
+  return e;
+}
+app.post('/api/admin/entries/:id/approve', (req, res) => {
+  const e = pendingEntry(res, req.params.id);
+  if (!e) return;
+  const topic = findTopic(String(req.body?.topicId || ''));
+  if (!topic) return fail(res, 400, 'เลือกหัวข้อที่จะเพิ่มผู้เข้าประกวด');
+  const top = topic.contestants.reduce((m, c) => Math.max(m, parseInt(c.number, 10) || 0), 0);
+  let n = top + 1;
+  while (topic.contestants.some((c) => c.number === String(n))) n++;
+  const c = { id: newId('c'), number: String(n), name: `${e.name} (${e.dept}) · ${e.concept}`.slice(0, 120), photo: e.photo };
+  topic.contestants.push(c);
+  topic.contestants.sort((a, b) => a.number.localeCompare(b.number, 'th', { numeric: true }));
+  Object.assign(e, { status: 'approved', topicId: topic.id, contestantId: c.id });
+  changed();
+  res.json(adminState());
+});
+app.post('/api/admin/entries/:id/reject', (req, res) => {
+  const e = pendingEntry(res, req.params.id);
+  if (!e) return;
+  removePhoto(e.photo);
+  Object.assign(e, { status: 'rejected', photo: null });
+  changed();
+  res.json(adminState());
+});
+app.delete('/api/admin/entries', (req, res) => {
+  // clear the list after the event (approved photos stay with their contestants)
+  for (const e of db.entries) if (e.status === 'pending') removePhoto(e.photo);
+  db.entries = [];
+  changed();
+  res.json(adminState());
+});
+
 app.post('/api/admin/reset-votes', (req, res) => {
   if ((req.body || {}).confirm !== 'ล้างผล') return fail(res, 400, 'พิมพ์คำว่า "ล้างผล" เพื่อยืนยัน');
   db.ballots = {};
@@ -1716,6 +1945,7 @@ app.listen(PORT, () => {
   }
   startHttps();
   reportMailSetup();
+  if (GDRIVE) checkDrive();
 });
 
 /** say on the console how email goes out; for Gmail / SMTP also try logging in once so a wrong password shows up now, not mid-batch */

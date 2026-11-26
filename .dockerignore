@@ -6,6 +6,8 @@ data
 node_modules
 .git
 *.pem
+# Google service account key: mount it at run time, never bake it into the image
+gdrive-key.json
 docs
 # results of security scans (ai-secure-audit): a list of weak points, not for the image
 .audit

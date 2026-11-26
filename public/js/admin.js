@@ -204,7 +204,52 @@ function tabTopics() {
       </div>
       <div class="row end"><button class="btn btn-primary">${icon('plus')}สร้างหัวข้อ</button></div>
     </form>
+    ${entriesCard()}
     ${list}`;
+}
+
+function driveNote(d) {
+  if (!d) return ' · ยังไม่ได้ตั้งค่า Google Drive (GDRIVE_KEY_FILE, GDRIVE_FOLDER_ID): รูปจาก Photo Booth บันทึกลงมือถือแขกอย่างเดียว';
+  if (d.ok) return ` · รูปจาก Photo Booth บันทึกไปโฟลเดอร์ “${esc(d.folderName)}” ใน Google Drive`;
+  if (d.ok === false) return `</p><p class="banner banner-warning">Google Drive ยังใช้ไม่ได้: ${esc(d.error)}`;
+  return ' · กำลังตรวจการเชื่อมต่อ Google Drive…';
+}
+
+/* costume entries guests send from the photo page (/ → ส่งประกวดชุด): nothing is public until approved here */
+const ENTRY_BADGE = { pending: ['badge-draft', 'รอตรวจ'], approved: ['badge-open', 'อนุมัติแล้ว'], rejected: ['badge-closed', 'ไม่อนุมัติ'] };
+function entriesCard() {
+  const st = A.st, es = st.entries || [], on = !!st.event.entriesOpen;
+  const pending = es.filter((e) => e.status === 'pending');
+  const topics = st.topics;
+  const topicOpts = topics.map((t) => `<option value="${t.id}"${t.id === A.entryTopic ? ' selected' : ''}>${esc(t.title)}</option>`).join('');
+  const row = (e) => {
+    const [cls, label] = ENTRY_BADGE[e.status] || ['badge-closed', e.status];
+    const where = e.status === 'approved' ? (topics.find((t) => t.id === e.topicId)?.title || '') : '';
+    const acts = e.status === 'pending'
+      ? `<div class="row">${topics.length ? `<button class="btn btn-primary btn-sm" data-act="entry-ok" data-id="${e.id}">${icon('check')}อนุมัติ</button>` : ''}
+          <button class="btn btn-danger btn-sm" data-act="entry-no" data-id="${e.id}">ไม่อนุมัติ</button></div>`
+      : `<span class="muted small">${where ? 'อยู่ใน ' + esc(where) : ''}</span>`;
+    return `<li class="entry-row">
+      ${e.photo ? `<a href="${esc(e.photo)}" target="_blank" rel="noopener">${photoHtml({ photo: e.photo, number: '?' }, 72)}</a>` : photoHtml({ number: '–' }, 72)}
+      <div class="entry-t"><b>${esc(e.name)}</b> <span class="muted">· ${esc(e.dept)}</span><br><span>${esc(e.concept)}</span><br>
+        <span class="badge ${cls}">${label}</span></div>
+      ${acts}
+    </li>`;
+  };
+  return `<section class="card panel" id="entries">
+    <div class="row"><h2>รูปประกวดชุดจากแขก</h2><span class="spacer"></span>
+      <button class="btn btn-sm ${on ? '' : 'btn-primary'}" data-act="entries-open" data-to="${on ? '0' : '1'}">${on ? 'ปิดรับรูป' : 'เปิดรับรูป'}</button></div>
+    <p class="hint">${on
+      ? 'เปิดรับอยู่: แขกที่ลงชื่อแล้วกด “ส่งประกวดชุด” ที่หน้าแรก ถ่ายรูปและกรอกชื่อ แผนก Concept รูปจะมารอที่นี่ อนุมัติแล้วจึงขึ้นเป็นผู้เข้าประกวดในหัวข้อที่เลือก'
+      : 'ปิดอยู่: ปุ่ม “ส่งประกวดชุด” ที่หน้าแรกจะบอกแขกว่ายังไม่เปิดรับ'}
+      ${driveNote(st.drive)}</p>
+    ${errBanner('entries')}
+    ${pending.length ? `<div class="field"><label for="entry-topic">อนุมัติเข้าหัวข้อ</label>
+      ${topics.length ? `<select id="entry-topic" class="input">${topicOpts}</select>` : '<p class="hint">สร้างหัวข้อประกวดก่อน จึงจะอนุมัติได้</p>'}</div>` : ''}
+    ${es.length ? `<ul class="entry-list">${es.map(row).join('')}</ul>
+      <div class="row end"><button class="btn btn-ghost btn-sm" data-act="entries-clear">ล้างรายการนี้</button></div>`
+      : '<p class="muted">ยังไม่มีรูปส่งเข้ามา</p>'}
+  </section>`;
 }
 
 function topicCard(t, i, n) {
@@ -627,6 +672,8 @@ function bind(main) {
     if (ask && !(await confirmDialog({ ...ask, cancelLabel: 'ไม่เปลี่ยน', danger: false }))) return renderMain();
     act(r, 'mode', () => api('PUT', '/api/admin/event', { accessMode: r.value }), 'เปลี่ยนวิธีเข้าโหวตแล้ว');
   }));
+  const et = main.querySelector('#entry-topic');
+  if (et) et.addEventListener('change', () => { A.entryTopic = et.value; });
   const ta = main.querySelector('#roster');
   if (ta) ta.addEventListener('input', () => { A.rosterDraft = ta.value; });
   const mm = main.querySelector('#mail-more');
@@ -795,6 +842,25 @@ async function onAct(e) {
       break;
     }
     case 'hide-setup': localStorage.setItem(SETUP_HIDDEN_KEY, '1'); renderMain(); break;
+    case 'entries-open':
+      act(b, 'entries', () => api('PUT', '/api/admin/event', { entriesOpen: b.dataset.to === '1' }), b.dataset.to === '1' ? 'เปิดรับรูปประกวดแล้ว' : 'ปิดรับรูปประกวดแล้ว');
+      break;
+    case 'entry-ok': {
+      const topicId = $('#entry-topic')?.value || A.st.topics[0]?.id;
+      A.entryTopic = topicId;
+      act(b, 'entries', () => api('POST', `/api/admin/entries/${id}/approve`, { topicId }), 'เพิ่มเป็นผู้เข้าประกวดแล้ว');
+      break;
+    }
+    case 'entry-no': {
+      const ok = await confirmDialog({ title: 'ไม่อนุมัติรูปนี้?', body: 'รูปจะถูกลบ แขกจะเห็นว่า “ไม่ผ่านการตรวจ”', confirmLabel: 'ไม่อนุมัติ', cancelLabel: 'เก็บไว้' });
+      if (ok) act(b, 'entries', () => api('POST', `/api/admin/entries/${id}/reject`), 'ไม่อนุมัติแล้ว');
+      break;
+    }
+    case 'entries-clear': {
+      const ok = await confirmDialog({ title: 'ล้างรายการรูปจากแขก?', body: 'รูปที่ยังรอตรวจจะถูกลบ ผู้เข้าประกวดที่อนุมัติไปแล้วยังอยู่ในหัวข้อตามเดิม', confirmLabel: 'ล้างรายการ', cancelLabel: 'เก็บไว้' });
+      if (ok) act(b, 'entries', () => api('DELETE', '/api/admin/entries'), 'ล้างรายการแล้ว');
+      break;
+    }
     case 'reset': {
       const ok = await confirmDialog({
         title: 'ล้างผลโหวตทั้งหมด?',

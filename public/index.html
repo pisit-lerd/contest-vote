@@ -2,33 +2,312 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#140c0b">
-<title>โหวต</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#9E3F16">
+<title>Staff Party</title>
+<link rel="icon" href="/img/beneat-icon.png">
 <link rel="stylesheet" href="/fonts/anuphan/400.css">
 <link rel="stylesheet" href="/fonts/anuphan/600.css">
-<link rel="stylesheet" href="/fonts/anuphan/700.css">
-<link rel="stylesheet" href="/css/base.css">
-<link rel="stylesheet" href="/css/vote.css">
+<link rel="stylesheet" href="/fonts/party/fonts.css">
+<link rel="stylesheet" href="/css/party.css">
 </head>
-<body>
-<header class="topbar">
-  <div class="wrap topbar-in">
-    <button id="back" class="btn btn-ghost btn-sm back" hidden aria-label="กลับไปหน้ารายการหัวข้อ"></button>
-    <h1 id="event-name" class="event-name">กำลังโหลด…</h1>
+<body class="on-home">
+<!-- Party landing + photo page (design: "Staff Party"). Voting is at /vote, the big screen at /screen. -->
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <a class="brand" href="/" aria-label="กลับหน้าแรก">
+        <img class="bn-icon" src="/img/beneat-icon.png" alt="">
+        <span class="brand-txt"><span class="eyebrow">Photo Booth · Best Costume</span><strong class="ev-title" id="topTitle"></strong></span>
+      </a>
+    </div>
   </div>
 </header>
-<div id="offline" class="wrap" hidden>
-  <div class="banner banner-warning" role="status"><span id="offline-icon"></span><span>หลุดการเชื่อมต่อ กำลังต่อใหม่… โหวตที่บันทึกแล้วไม่หาย</span></div>
-</div>
-<main id="app" class="wrap" aria-live="polite">
-  <div class="center-state"><div class="spinner" role="img" aria-label="กำลังโหลด"></div></div>
+
+<main class="wrap">
+  <section class="view" id="view-studio" aria-label="ถ่ายรูป">
+    <!-- home: Nova-style landing -->
+    <div class="screen home" id="scHome">
+      <section class="hero booth-hero" aria-label="หน้าแรก">
+        <!-- shared drawing parts for the film: two BeNeat housekeepers in a hand-drawn grey comic style -->
+        <svg class="bh-defs" width="0" height="0" aria-hidden="true" focusable="false">
+          <defs>
+            <filter id="bhShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="9" dy="5" stdDeviation="1.6" flood-color="#000" flood-opacity=".22"/></filter>
+            <filter id="bhGrain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .55 0"/></filter>
+            <!-- bodies (origin = base of the neck) -->
+            <symbol id="bhBodyA" overflow="visible"><g transform="translate(0 -12)">
+              <path d="M-95 210 C-96 100 -76 32 -30 8 L30 8 C76 32 96 100 95 210 Z" fill="#555" stroke="#151515" stroke-width="3.5" stroke-linejoin="round"/>
+              <path d="M-70 120 l9 30 M-60 96 l9 30 M66 112 l-9 30" stroke="#3b3b3b" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M-10 -30 V10 Q0 16 10 10 V-30 Z" fill="#E2DED6" stroke="#151515" stroke-width="3"/><path d="M-10 -6 Q0 0 10 -6" fill="none" stroke="#B9B3AA" stroke-width="2.5"/>
+              <path d="M-42 66 L42 66 L47 210 L-47 210 Z" fill="#FAFAF7" stroke="#151515" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M-40 68 L-27 12 M40 68 L27 12" stroke="#151515" stroke-width="10" stroke-linecap="round"/>
+              <path d="M-40 68 L-27 12 M40 68 L27 12" stroke="#FAFAF7" stroke-width="4.5" stroke-linecap="round"/>
+              <path d="M-31 8 Q-20 34 0 26 Q20 34 31 8 Q16 15 0 15 Q-16 15 -31 8 Z" fill="#FAFAF7" stroke="#151515" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M-21 122 h42 v24 q-21 9 -42 0 z" fill="none" stroke="#151515" stroke-width="2.5" stroke-linejoin="round"/>
+              <text x="0" y="108" text-anchor="middle" font-family="Fredoka, Inter Tight, sans-serif" font-weight="700" font-size="18" letter-spacing="-.3" fill="#151515">BeNeat</text></g></symbol>
+            <symbol id="bhBodyB" overflow="visible"><g transform="translate(0 -12)">
+              <path d="M-95 210 C-96 100 -76 32 -30 8 L30 8 C76 32 96 100 95 210 Z" fill="#7d7d7d" stroke="#151515" stroke-width="3.5" stroke-linejoin="round"/>
+              <path d="M-72 126 l9 30 M70 104 l-9 30 M60 128 l-9 30" stroke="#5d5d5d" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M-10 -30 V10 Q0 16 10 10 V-30 Z" fill="#E2DED6" stroke="#151515" stroke-width="3"/><path d="M-10 -6 Q0 0 10 -6" fill="none" stroke="#B9B3AA" stroke-width="2.5"/>
+              <path d="M-50 58 Q0 82 50 58 L54 210 L-54 210 Z" fill="#FAFAF7" stroke="#151515" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M-50 60 q6.25 9 12.5 0 q6.25 9 12.5 0 q6.25 9 12.5 0 q6.25 9 12.5 0 q6.25 9 12.5 0 q6.25 9 12.5 0 q6.25 9 12.5 0 q6.25 9 12.5 0" fill="none" stroke="#151515" stroke-width="2.4" transform="translate(0 7)"/>
+              <path d="M-22 8 L0 30 L22 8" fill="none" stroke="#151515" stroke-width="3" stroke-linejoin="round"/>
+              <circle cx="0" cy="44" r="4" fill="#151515"/><text x="0" y="116" text-anchor="middle" font-family="Fredoka, Inter Tight, sans-serif" font-weight="700" font-size="19" letter-spacing="-.3" fill="#151515">BeNeat</text>
+              <path d="M-24 132 h48 v26 q-24 10 -48 0 z" fill="none" stroke="#151515" stroke-width="2.5" stroke-linejoin="round"/></g></symbol>
+            <!-- heads (origin = centre of the face) -->
+            <symbol id="bhHeadA" overflow="visible">
+              <path d="M-57 30 C-68 -42 -34 -82 0 -82 C34 -82 68 -42 57 30 Z" fill="#3b3b3b" stroke="#151515" stroke-width="3.5" stroke-linejoin="round"/>
+              <circle cx="0" cy="-90" r="22" fill="#3b3b3b" stroke="#151515" stroke-width="3.5"/>
+              <path d="M-12 -104 q10 -6 20 2" fill="none" stroke="#6a6a6a" stroke-width="3" stroke-linecap="round"/>
+              <ellipse cx="-46" cy="8" rx="8" ry="11" fill="#E9E5DE" stroke="#151515" stroke-width="3"/>
+              <ellipse cx="46" cy="8" rx="8" ry="11" fill="#E9E5DE" stroke="#151515" stroke-width="3"/>
+              <ellipse rx="45" ry="51" fill="#F1EEE8" stroke="#151515" stroke-width="3.5"/>
+              <path d="M-46 -12 Q-22 -36 8 -26 Q-14 -20 -30 2 Q-38 -8 -46 -12 Z" fill="#3b3b3b" stroke="#151515" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M-50 -24 Q0 -66 50 -24 L47 -10 Q0 -50 -47 -10 Z" fill="#FAFAF7" stroke="#151515" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M36 -44 l20 -14 l3 18 z M36 -44 l22 4 l-10 13 z" fill="#FAFAF7" stroke="#151515" stroke-width="2.6" stroke-linejoin="round"/>
+              <circle cx="36" cy="-44" r="5" fill="#FAFAF7" stroke="#151515" stroke-width="2.6"/>
+            </symbol>
+            <symbol id="bhHeadB" overflow="visible">
+              <path d="M-59 42 C-68 -30 -38 -70 0 -70 C38 -70 68 -30 59 42 C50 48 45 42 45 32 L-45 32 C-45 42 -50 48 -59 42 Z" fill="#8f8f8f" stroke="#151515" stroke-width="3.5" stroke-linejoin="round"/>
+              <ellipse rx="45" ry="51" fill="#F1EEE8" stroke="#151515" stroke-width="3.5"/>
+              <path d="M-47 -8 C-42 -48 42 -48 47 -8 C32 -24 12 -22 0 -12 C-12 -24 -32 -24 -47 -8 Z" fill="#8f8f8f" stroke="#151515" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M-61 -24 C-72 -88 -22 -108 0 -108 C22 -108 72 -88 61 -24 C34 -40 -34 -40 -61 -24 Z" fill="#FAFAF7" stroke="#151515" stroke-width="3.5" stroke-linejoin="round"/>
+              <path d="M-58 -30 C-30 -44 30 -44 58 -30" fill="none" stroke="#9a9a9a" stroke-width="5" stroke-linecap="round"/>
+              <path d="M-60 -24 q7.5 9 15 0 q7.5 9 15 0 q7.5 9 15 0 q7.5 9 15 0 q7.5 9 15 0 q7.5 9 15 0 q7.5 9 15 0 q7.5 9 15 0" fill="none" stroke="#151515" stroke-width="2.4" transform="translate(0 4)"/>
+              <path d="M-26 -80 C-14 -92 6 -94 20 -90" fill="none" stroke="#E2DED6" stroke-width="7" stroke-linecap="round"/>
+              <circle cx="-30" cy="12" r="1.8" fill="#9a958d"/><circle cx="-24" cy="16" r="1.8" fill="#9a958d"/><circle cx="26" cy="14" r="1.8" fill="#9a958d"/><circle cx="32" cy="10" r="1.8" fill="#9a958d"/>
+            </symbol>
+            <!-- faces -->
+            <symbol id="fSmile" overflow="visible"><ellipse cx="-27" cy="20" rx="9" ry="5" fill="#D8D2C9"/><ellipse cx="27" cy="20" rx="9" ry="5" fill="#D8D2C9"/><ellipse cx="-16" cy="2" rx="4.5" ry="6" fill="#151515"/><ellipse cx="16" cy="2" rx="4.5" ry="6" fill="#151515"/><path d="M-24 -12 q8 -4 16 0 M8 -12 q8 -4 16 0" fill="none" stroke="#151515" stroke-width="2.6" stroke-linecap="round"/><path d="M-15 22 Q0 36 15 22" fill="none" stroke="#151515" stroke-width="3" stroke-linecap="round"/></symbol>
+            <symbol id="fWink" overflow="visible"><ellipse cx="-27" cy="20" rx="9" ry="5" fill="#D8D2C9"/><ellipse cx="27" cy="20" rx="9" ry="5" fill="#D8D2C9"/><ellipse cx="-16" cy="2" rx="4.5" ry="6" fill="#151515"/><path d="M8 4 q8 -9 16 0" fill="none" stroke="#151515" stroke-width="3" stroke-linecap="round"/><path d="M-24 -12 q8 -4 16 0 M8 -14 q8 -4 16 0" fill="none" stroke="#151515" stroke-width="2.6" stroke-linecap="round"/><path d="M-15 20 Q0 38 15 20 Z" fill="#151515"/><path d="M-6 30 Q0 25 6 30 Q0 34 -6 30 Z" fill="#9a958d"/></symbol>
+            <symbol id="fLaugh" overflow="visible"><ellipse cx="-27" cy="18" rx="9" ry="5" fill="#D8D2C9"/><ellipse cx="27" cy="18" rx="9" ry="5" fill="#D8D2C9"/><path d="M-24 4 q8 -10 16 0 M8 4 q8 -10 16 0" fill="none" stroke="#151515" stroke-width="3" stroke-linecap="round"/><path d="M-17 18 Q0 46 17 18 Z" fill="#151515"/><path d="M-8 32 Q0 26 8 32 Q0 38 -8 32 Z" fill="#9a958d"/></symbol>
+            <symbol id="fSing" overflow="visible"><ellipse cx="-27" cy="20" rx="9" ry="5" fill="#D8D2C9"/><ellipse cx="27" cy="20" rx="9" ry="5" fill="#D8D2C9"/><path d="M-24 2 q8 6 16 0 M8 2 q8 6 16 0" fill="none" stroke="#151515" stroke-width="3" stroke-linecap="round"/><path d="M-24 -14 q8 -6 16 -2 M8 -16 q8 -4 16 2" fill="none" stroke="#151515" stroke-width="2.6" stroke-linecap="round"/><ellipse cx="0" cy="26" rx="8" ry="10" fill="#151515"/></symbol>
+            <symbol id="fCool" overflow="visible"><path d="M-36 -6 h28 a4 4 0 0 1 4 4 v6 a12 12 0 0 1 -12 12 h-8 a12 12 0 0 1 -12 -12 v-6 a4 4 0 0 1 4 -4 z M8 -6 h28 a4 4 0 0 1 4 4 v6 a12 12 0 0 1 -12 12 h-8 a12 12 0 0 1 -12 -12 v-6 a4 4 0 0 1 4 -4 z" fill="#151515"/><path d="M-4 -2 h8 M-40 -4 l-8 -4 M40 -4 l8 -4" stroke="#151515" stroke-width="3" stroke-linecap="round"/><path d="M-30 0 l8 6 M14 0 l8 6" stroke="#8a8a8a" stroke-width="2.5" stroke-linecap="round"/><path d="M-12 26 Q4 34 16 22" fill="none" stroke="#151515" stroke-width="3" stroke-linecap="round"/></symbol>
+            <symbol id="fGrin" overflow="visible"><ellipse cx="-27" cy="20" rx="9" ry="5" fill="#D8D2C9"/><ellipse cx="27" cy="20" rx="9" ry="5" fill="#D8D2C9"/><path d="M-24 0 q8 -5 16 0 M8 0 q8 -5 16 0" fill="none" stroke="#151515" stroke-width="3" stroke-linecap="round"/><ellipse cx="-16" cy="4" rx="3.5" ry="3" fill="#151515"/><ellipse cx="16" cy="4" rx="3.5" ry="3" fill="#151515"/><path d="M-26 -14 l14 4 M26 -14 l-14 4" fill="none" stroke="#151515" stroke-width="2.6" stroke-linecap="round"/><path d="M-18 20 Q0 34 18 20 Q0 26 -18 20 Z" fill="#FAFAF7" stroke="#151515" stroke-width="2.6" stroke-linejoin="round"/></symbol>
+            <symbol id="fMouth" overflow="visible"><ellipse cx="-27" cy="22" rx="9" ry="5" fill="#D8D2C9"/><ellipse cx="27" cy="22" rx="9" ry="5" fill="#D8D2C9"/><path d="M-18 22 Q0 50 18 22 Z" fill="#151515"/><path d="M-8 36 Q0 30 8 36 Q0 42 -8 36 Z" fill="#9a958d"/></symbol>
+            <!-- hands (origin = wrist) -->
+            <symbol id="hPeace" overflow="visible"><g fill="#F1EEE8" stroke="#151515" stroke-width="3" stroke-linejoin="round"><rect x="-15" y="-64" width="11" height="38" rx="5.5" transform="rotate(-12 -9 -30)"/><rect x="2" y="-66" width="11" height="40" rx="5.5" transform="rotate(10 8 -30)"/><path d="M-17 2 C-21 -18 -16 -32 0 -32 C16 -32 20 -18 16 2 Z"/><path d="M-6 -18 q10 -4 16 2" fill="none"/></g></symbol>
+            <symbol id="hOpen" overflow="visible"><path d="M-16 4 C-21 -10 -21 -38 -17 -48 C-15 -55 -8 -55 -7 -47 L-6 -30 L-5 -58 C-4 -65 4 -65 4 -58 L4 -32 L6 -56 C7 -63 14 -62 14 -55 L13 -30 L17 -45 C18 -52 25 -51 24 -44 C22 -26 22 -6 16 4 Z" fill="#F1EEE8" stroke="#151515" stroke-width="3" stroke-linejoin="round"/></symbol>
+            <symbol id="hFist" overflow="visible"><path d="M-16 4 C-20 -12 -16 -30 0 -30 C16 -30 20 -12 16 4 Z" fill="#F1EEE8" stroke="#151515" stroke-width="3" stroke-linejoin="round"/><path d="M-12 -18 h22 M-12 -9 h22" stroke="#151515" stroke-width="2" stroke-linecap="round"/></symbol>
+            <!-- props -->
+            <symbol id="pBroom" overflow="visible"><path d="M0 0 V196" stroke="#151515" stroke-width="11" stroke-linecap="round"/><path d="M0 0 V196" stroke="#BDB7AD" stroke-width="5" stroke-linecap="round"/><rect x="-13" y="190" width="26" height="16" rx="4" fill="#8a8a8a" stroke="#151515" stroke-width="3"/><path d="M-12 206 Q-40 240 -36 268 L-24 258 L-18 274 L-8 260 L0 278 L8 260 L18 274 L24 258 L36 268 Q40 240 12 206 Z" fill="#DCD7CF" stroke="#151515" stroke-width="3" stroke-linejoin="round"/><path d="M-6 214 L-16 262 M0 214 L0 268 M6 214 L16 262" stroke="#8a8a8a" stroke-width="2" stroke-linecap="round"/></symbol>
+            <symbol id="pDuster" overflow="visible"><path d="M0 0 V90" stroke="#151515" stroke-width="10" stroke-linecap="round"/><path d="M0 0 V90" stroke="#BDB7AD" stroke-width="4.5" stroke-linecap="round"/><path d="M-6 -2 C-30 0 -36 -20 -24 -30 C-36 -44 -20 -62 -6 -54 C0 -70 22 -66 22 -50 C40 -50 40 -26 26 -20 C30 -4 12 4 6 -2 Z" fill="#E7E3DC" stroke="#151515" stroke-width="3" stroke-linejoin="round"/><path d="M-14 -24 q8 -6 14 0 M4 -40 q8 -6 12 2 M-4 -12 q6 -4 12 0" fill="none" stroke="#9a958d" stroke-width="2.2" stroke-linecap="round"/></symbol>
+            <symbol id="pNote" overflow="visible"><path d="M0 0 V-26 l14 -5 V-6" fill="none" stroke="#151515" stroke-width="3" stroke-linejoin="round"/><ellipse cx="-4" cy="0" rx="6" ry="4.5" fill="#151515"/><ellipse cx="10" cy="-6" rx="6" ry="4.5" fill="#151515"/></symbol>
+            <symbol id="pHeart" overflow="visible"><path d="M0 10 C-16 -2 -20 -14 -12 -20 C-6 -24 -1 -20 0 -15 C1 -20 6 -24 12 -20 C20 -14 16 -2 0 10 Z" fill="#FAFAF7" stroke="#151515" stroke-width="3" stroke-linejoin="round"/></symbol>
+            <symbol id="pSpark" overflow="visible"><path d="M0 -12 Q2 -2 12 0 Q2 2 0 12 Q-2 2 -12 0 Q-2 -2 0 -12 Z" fill="#FAFAF7" stroke="#151515" stroke-width="2.4" stroke-linejoin="round"/></symbol>
+            <symbol id="pBubble" overflow="visible"><circle r="9" fill="#FAFAF7" stroke="#151515" stroke-width="2.4"/><path d="M-4 -3 q2 -3 5 -3" fill="none" stroke="#9a958d" stroke-width="2" stroke-linecap="round"/></symbol>
+          </defs>
+        </svg>
+
+        <!-- left: the film strip -->
+        <div class="bh-film" aria-hidden="true">
+          <div class="bh-strip">
+            <!-- 1: peace signs -->
+            <svg class="bh-shot" viewBox="0 0 300 360">
+              <rect width="300" height="360" fill="#ECEBE7"/>
+              <g filter="url(#bhShadow)">
+                <use href="#bhBodyA" x="98" y="228"/>
+                <path class="sl-o" d="M46 270 C28 246 28 214 36 194"/><path class="sl-a" d="M46 270 C28 246 28 214 36 194"/>
+                <use href="#hPeace" transform="translate(36 196) rotate(-8)"/>
+                <use href="#bhHeadA" x="98" y="152"/><use href="#fSmile" x="98" y="152"/>
+                <use href="#bhBodyB" x="206" y="232"/>
+                <path class="sl-o" d="M256 272 C274 248 274 218 266 198"/><path class="sl-b" d="M256 272 C274 248 274 218 266 198"/>
+                <use href="#hPeace" transform="translate(266 200) rotate(8) scale(-1 1)"/>
+                <use href="#bhHeadB" x="206" y="156"/><use href="#fWink" x="206" y="156"/>
+              </g>
+              <use href="#pSpark" transform="translate(150 70)"/><use href="#pSpark" transform="translate(270 92) scale(.7)"/>
+              <rect width="300" height="360" filter="url(#bhGrain)" opacity=".18"/>
+            </svg>
+            <!-- 2: duster karaoke + sunglasses -->
+            <svg class="bh-shot" viewBox="0 0 300 360">
+              <rect width="300" height="360" fill="#ECEBE7"/>
+              <g filter="url(#bhShadow)">
+                <use href="#bhBodyA" x="92" y="232"/>
+                <g transform="rotate(-7 92 156)"><use href="#bhHeadA" x="92" y="156"/><use href="#fSing" x="92" y="156"/></g>
+                <path class="sl-o" d="M128 290 C150 270 152 246 142 226"/><path class="sl-a" d="M128 290 C150 270 152 246 142 226"/>
+                <use href="#pDuster" transform="translate(150 214) rotate(-4)"/>
+                <use href="#hFist" transform="translate(142 238)"/>
+                <use href="#bhBodyB" x="214" y="236"/>
+                <use href="#bhHeadB" x="214" y="160"/><use href="#fCool" x="214" y="160"/>
+                <path class="sl-o" d="M262 276 C282 252 284 224 276 206"/><path class="sl-b" d="M262 276 C282 252 284 224 276 206"/>
+                <use href="#hOpen" transform="translate(276 208) rotate(10)"/>
+              </g>
+              <use href="#pNote" transform="translate(44 92) rotate(-10)"/><use href="#pNote" transform="translate(30 140) scale(.75)"/>
+              <rect width="300" height="360" filter="url(#bhGrain)" opacity=".18"/>
+            </svg>
+            <!-- 3: guess who! (hands over the eyes) -->
+            <svg class="bh-shot" viewBox="0 0 300 360">
+              <rect width="300" height="360" fill="#ECEBE7"/>
+              <g filter="url(#bhShadow)">
+                <use href="#bhBodyA" x="92" y="196"/>
+                <use href="#bhHeadA" x="98" y="116"/><use href="#fGrin" x="98" y="116"/>
+                <use href="#bhBodyB" x="176" y="262"/>
+                <use href="#bhHeadB" x="176" y="186"/><use href="#fMouth" x="176" y="186"/>
+                <path class="sl-o" d="M56 236 C80 220 112 190 138 186"/><path class="sl-a" d="M56 236 C80 220 112 190 138 186"/>
+                <use href="#hOpen" transform="translate(132 186) rotate(80)"/>
+                <use href="#hOpen" transform="translate(222 192) rotate(-80) scale(-1 1)"/>
+              </g>
+              <use href="#pBubble" transform="translate(250 90)"/><use href="#pBubble" transform="translate(268 120) scale(.6)"/><use href="#pBubble" transform="translate(236 128) scale(.45)"/>
+              <rect width="300" height="360" filter="url(#bhGrain)" opacity=".18"/>
+            </svg>
+            <!-- 4: cheek to cheek with a heart and the broom -->
+            <svg class="bh-shot" viewBox="0 0 300 360">
+              <rect width="300" height="360" fill="#ECEBE7"/>
+              <g filter="url(#bhShadow)">
+                <use href="#bhBodyA" x="116" y="234"/>
+                <use href="#bhBodyB" x="194" y="238"/>
+                <use href="#pBroom" transform="translate(30 356) rotate(186)"/>
+                <g transform="rotate(9 122 160)"><use href="#bhHeadA" x="122" y="160"/><use href="#fLaugh" x="122" y="160"/></g>
+                <g transform="rotate(-9 188 164)"><use href="#bhHeadB" x="188" y="164"/><use href="#fLaugh" x="188" y="164"/></g>
+                <path class="sl-o" d="M84 296 C104 284 124 284 140 296"/><path class="sl-a" d="M84 296 C104 284 124 284 140 296"/>
+                <path class="sl-o" d="M226 300 C206 288 186 288 170 298"/><path class="sl-b" d="M226 300 C206 288 186 288 170 298"/>
+                <use href="#pHeart" transform="translate(155 300) scale(1.7)"/>
+              </g>
+              <use href="#pSpark" transform="translate(60 72)"/><use href="#pSpark" transform="translate(250 64) scale(.8)"/><use href="#pHeart" transform="translate(262 120) scale(.8) rotate(12)"/>
+              <rect width="300" height="360" filter="url(#bhGrain)" opacity=".18"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- right: the curtain -->
+        <div class="bh-curtain">
+          <div class="bh-top">
+            <div class="hs-timer" id="heroTimer"><span class="hs-k" id="heroTimerLabel">กำลังโหลด…</span><b class="hs-v mono" id="heroCountdown"></b></div>
+
+          </div>
+          <div class="bh-center">
+            <h1 class="bh-logo" aria-label="Staff Party"><span>staff</span><span class="l2">party<svg class="bh-spark" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 14 L30 4 L36 28 L12 36 Z" fill="currentColor" transform="rotate(8 20 20)"/></svg></span></h1>
+            <p class="bh-sub" id="eventName">BeNeat Be Nice 2026</p>
+            <div class="bh-actions">
+              <button class="bh-btn main" type="button" data-cam="booth"><span class="t">ถ่ายรูปสนุกๆ</span><span class="s">Photo Booth</span></button>
+              <button class="bh-btn" type="button" data-cam="contest"><span class="t">ส่งประกวดชุด</span><span class="s">Best Costume</span></button>
+            </div>
+            <div class="bh-links">
+              <a class="live-cta bh-link" href="/screen"><i class="bh-dot"></i>Live Score</a>
+              <a class="vote-cta2 bh-link" href="/vote" id="voteLink">ลงชื่อโหวต</a>
+            </div>
+          </div>
+          <p class="bh-stat"><b id="heroTopics">0</b> หัวข้อประกวด · <span id="heroEntries">0 ผู้เข้าประกวด</span></p>
+        </div>
+      </section>
+    </div>
+    <!-- booth setup: frame → layout → count → start -->
+    <div class="screen" id="scBooth" hidden>
+      <div class="screen-top"><button class="back" type="button" data-go="home">← หน้าแรก</button><h2>ถ่ายรูปสนุกๆ</h2></div>
+      <div class="studio">
+        <div class="stage-col">
+          <div class="stage"><canvas id="stage" aria-label="ตัวอย่างกรอบที่เลือก"></canvas></div>
+          <p class="stage-note" id="stageNote"></p>
+        </div>
+        <div class="panel">
+          <div>
+            <span class="label">1 · เลือกกรอบ</span>
+            <div class="frames" id="frames" role="radiogroup" aria-label="กรอบรูป"></div>
+          </div>
+          <div>
+            <span class="label">2 · รูปแบบแผ่น</span>
+            <div class="count-row two" id="shapeRow" role="radiogroup" aria-label="รูปแบบแผ่น">
+              <button type="button" role="radio" data-shape="strip"><span class="shp tall"></span>แนวตั้ง · ตู้สติกเกอร์</button>
+              <button type="button" role="radio" data-shape="square"><span class="shp wide"></span>แนวนอน</button>
+            </div>
+          </div>
+          <div>
+            <span class="label">3 · จำนวนรูปต่อแผ่น</span>
+            <div class="count-row" id="countRow" role="radiogroup" aria-label="จำนวนรูป">
+              <button type="button" role="radio" data-n="1">1 รูป</button>
+              <button type="button" role="radio" data-n="2">2 รูป</button>
+              <button type="button" role="radio" data-n="3">3 รูป</button>
+              <button type="button" role="radio" data-n="4">4 รูป</button>
+            </div>
+          </div>
+          <button class="shutter" id="startBooth" type="button"><span class="ring"></span>เริ่มถ่าย</button>
+          <p class="stage-note left" id="boothHow"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- contest: start → shoot → review (save / retake) → info form → board. Frame fixed to IG Post -->
+    <div class="screen" id="scContest" hidden>
+      <div class="screen-top"><button class="back" type="button" data-go="home">← หน้าแรก</button><h2>ถ่ายประกวด</h2></div>
+      <div class="studio">
+        <div class="stage-col">
+          <div class="stage"><canvas id="stageC" aria-label="กรอบประกวด IG Post"></canvas></div>
+          <p class="stage-note">กรอบประกวด: IG Post · 1 รูป</p>
+        </div>
+        <div class="panel">
+          <div id="contestMsg" hidden></div>
+          <div id="contestForm" class="panel-inner">
+            <button class="shutter contest" id="startContest" type="button"><span class="ring"></span>เริ่มถ่ายประกวด</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- contest info form (after บันทึก) -->
+    <div class="screen" id="scForm" hidden>
+      <div class="screen-top"><button class="back" type="button" data-go="home">← ยกเลิก</button><h2>ข้อมูลผู้ประกวด</h2></div>
+      <div class="studio">
+        <div class="stage-col">
+          <div class="stage"><canvas id="stageF" aria-label="รูปประกวดพร้อมกรอบ"></canvas></div>
+          <p class="stage-note">ชื่อ · แผนก · Concept จะขึ้นบนกรอบ</p>
+        </div>
+        <div class="panel">
+          <ol class="flow" id="formFlow" aria-label="ขั้นตอน"></ol>
+          <div class="info-grid">
+            <div class="field wide">
+              <label class="label" for="fName">ชื่อ</label>
+              <input id="fName" type="text" maxlength="24" autocomplete="off" placeholder="เช่น มายด์">
+            </div>
+            <div class="field wide">
+              <label class="label" for="fDept">แผนก</label>
+              <input id="fDept" type="text" maxlength="24" autocomplete="off" placeholder="เช่น Customer Service">
+            </div>
+            <div class="field wide">
+              <label class="label" for="fConcept">Concept</label>
+              <input id="fConcept" type="text" maxlength="32" autocomplete="off" placeholder="เช่น เจ้าหญิงไม้กวาด">
+            </div>
+          </div>
+
+          <div class="res-actions">
+            <p class="stage-note left">รูปจะไปรอให้แอดมินตรวจก่อน ผ่านแล้วจึงขึ้นให้โหวต</p>
+            <button class="shutter contest" id="submitContest" type="button" disabled>ส่งประกวด</button>
+            <button class="btn res-btn toy alt" id="formRetake" type="button"><span class="ab-ic retake" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" fill="currentColor" opacity=".25"/><path d="M15.6 10.2A4 4 0 1 0 16 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.4 8.4v2.4H14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rb-t"><b>ถ่ายใหม่</b><small>นับถอยหลัง 5 วินาที แล้วถ่ายอีกครั้ง</small></span><span class="rb-go"><span class="go-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- result: auto saved / submitted, back home in 5 s -->
+    <div class="screen" id="scResult" hidden>
+      <div class="result">
+        <div class="result-img"><img id="resultImg" alt="รูปที่ถ่ายเสร็จแล้ว"></div>
+        <div class="result-side">
+          <ol class="flow" id="resultFlow" aria-label="ขั้นตอน"></ol>
+          <span class="eyebrow" id="resultKicker">เสร็จสิ้น</span>
+          <h2 class="result-title" id="resultTitle">ได้รูปแล้ว!</h2>
+          <p class="lede" id="resultText"></p>
+          <div class="res-actions" id="resActions"></div>
+          <p class="auto-back" id="autoBack"></p>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
-<div id="bar" class="vote-bar" hidden></div>
-<button id="cheer-fab" class="cheer-fab" hidden aria-haspopup="dialog"></button>
-<dialog id="cheer" class="cheer-sheet" aria-labelledby="cheer-h"></dialog>
+
+<div class="shoot" id="shoot" hidden role="dialog" aria-modal="true" aria-label="กำลังถ่ายรูป">
+  <canvas id="shootCanvas"></canvas>
+  <div class="shoot-num" id="shootNum" aria-live="assertive"></div>
+  <div class="shoot-lbl" id="shootLbl"></div>
+  <div class="shoot-err" id="shootErr" hidden role="alert"><b>เปิดกล้องไม่ได้</b><p id="shootErrText"></p><button class="btn primary" id="shootRetry" type="button">ลองอีกครั้ง</button></div>
+  <button class="shoot-cancel" id="shootCancel" type="button">ยกเลิก</button>
+  <button class="shoot-flip" id="shootFlip" type="button" hidden aria-label="สลับกล้องหน้า/หลัง"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.6 12.2a3.4 3.4 0 0 1 5.9-2.1M15.4 11.8a3.4 3.4 0 0 1-5.9 2.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14.9 8.2v2.2h-2.2M9.1 15.8v-2.2h2.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>สลับกล้อง</span></button>
+  <div class="shoot-flash" id="shootFlash"></div>
+  <video id="liveVid" playsinline muted></video>
+</div>
+<input type="file" id="camFile" accept="image/*" capture="user" hidden>
+<div class="toast" id="toast" role="status"></div>
 <script src="/js/common.js"></script>
-<script src="/js/pow.js"></script>
-<script src="/js/vote.js"></script>
+<script src="/js/frames.js"></script>
+<script src="/js/party.js"></script>
 </body>
 </html>
