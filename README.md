@@ -140,6 +140,8 @@ The first time the admin page opens, a checklist at the top walks through steps 
      cards; each card has a QR code with its code built in, so scanning gets the guest straight in.
      If a batch of cards is lost or taken before voting starts, delete the printed codes and print new ones: anyone
      who already joined with an old card is signed out and cannot vote. (Deleting is refused once a card has voted.)
+     "ลบรหัสทั้งหมด" (delete all codes) also removes cards taken at the registration desk and sets its "cards taken"
+     count back to 0; emailed codes stay.
      One card can be signed in on up to 10 phones at a time; joining on an 11th signs out the oldest.
    - Email codes. See "Email vote codes".
    - A registration desk where guests scan a screen to get a card on their phone. See "Registration desk".
