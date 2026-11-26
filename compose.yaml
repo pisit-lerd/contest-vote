@@ -16,6 +16,9 @@ services:
         required: false
     volumes:
       - vote-data:/data
+      # Google Drive key: put it in ./secrets/ (never in the image) and set
+      # GDRIVE_KEY_FILE=./secrets/gdrive-key.json in .env; chmod 644 the file on Linux (the app runs as uid 1000)
+      - ./secrets:/app/secrets:ro
     # the app writes only to /data; everything else in the container is read-only
     read_only: true
     tmpfs:
